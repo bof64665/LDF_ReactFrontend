@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { withTooltip} from '@visx/tooltip';
 import { WithTooltipProvidedProps } from '@visx/tooltip/lib/enhancers/withTooltip';
 import * as d3 from 'd3';
-import { scaleOrdinal } from '@visx/scale';
+import { scaleLinear, scaleOrdinal } from '@visx/scale';
 import forceInABox from './forceInABox';
 import { FileNodeType, PortNodeType, ProcessNodeType } from './mockdata';
 
@@ -16,6 +16,11 @@ const nodeTypeColorScale = scaleOrdinal({
     range: [...d3.schemeTableau10],
     domain: ['a', 'b', 'c', 'local']
 });
+
+const connectionIntensityColorScale = scaleLinear({
+    domain: [0, 1],
+	range: ['#425fbd', '#d93b26'],
+})
 
 const settings = {
     nodeRadius: 20,
@@ -140,7 +145,7 @@ function runForceGraph(
         .attr('xoverflow','visible')
         .append('path')
         .attr('d', 'M 0 -3 L 6 0 L 0 3')
-        .attr('fill', '#999')
+        .attr('fill', (d: any) => getLinkColor(d))
         .style('stroke','none');
 
     const groups = svg.append('g').attr('class', 'groups');
@@ -164,7 +169,7 @@ function runForceGraph(
         .join('line')
         .attr('id', (d: any) => d.id)
         .attr('class', 'file-version-link')
-        .attr('stroke', '#999')
+        .attr('stroke', (d: any) => getLinkColor(d))
         .attr('fill', 'none')
         .attr('stroke-width', 3)
         .on('mouseover', linkMouseOver)
@@ -186,7 +191,7 @@ function runForceGraph(
         .join('path')
         .attr('id', (d: any) => d.id)
         .attr('class', 'network-activity-link')
-        .attr('stroke', '#999')
+        .attr('stroke', (d: any) => getLinkColor(d))
         .attr('fill', 'none')
         .attr('stroke-width', 3)
         .on('mouseover', linkMouseOver)
@@ -422,12 +427,11 @@ function runForceGraph(
         d3.selectAll('.file-node, .process-node, .port-node, .endpoint-node')
             .transition().duration(500)
             .attr('opacity', (d: any) => d.id === link.target.id || d.id === link.source.id ? 1 : .2)
-            .attr('stroke', (d: any) => d.id === link.target.id || d.id === link.source.id ? '#000000e6' : '#fff');
+            .attr('stroke', (d: any) => d.id === link.target.id || d.id === link.source.id ? nodeTypeColorScale(d.hostName) : '#fff');
 
         d3.selectAll('.port-link, .file-version-link, .network-activity-link')
             .transition().duration(500)
-            .attr('opacity', (d: any) => link.id === d.id ? 1 : .2)
-            .attr('stroke', (d: any) => link.id === d.id ? '#000000e6' : '#999');
+            .attr('opacity', (d: any) => link.id === d.id ? 1 : .2);
 
         nodeLabels
             .transition().duration(500)
@@ -435,8 +439,7 @@ function runForceGraph(
 
         arrowheads
             .transition().duration(500)
-            .attr('opacity', (d: any) => link.id === d.id ? 1 : .2)
-            .attr('fill', (d: any) => link.id === d.id ? '#000000e6' : '#999');
+            .attr('opacity', (d: any) => link.id === d.id ? 1 : .2);
     }
 
     function nodeMouseOver(event: any, node: any) {
@@ -447,12 +450,11 @@ function runForceGraph(
         d3.selectAll('.file-node, .process-node, .port-node, .endpoint-node')
             .transition().duration(500)
             .attr('opacity', (d: any) => node.id === d.id || neighborNodesIDs.indexOf (d.id) > -1 ? 1 : .2)
-            .attr('stroke', (d: any) => node.id === d.id || neighborNodesIDs.indexOf (d.id) > -1 ? '#000000e6' : '#fff');
+            .attr('stroke', (d: any) => node.id === d.id || neighborNodesIDs.indexOf (d.id) > -1 ? nodeTypeColorScale(d.hostName) : '#fff');
     
         d3.selectAll('.port-link, .file-version-link, .network-activity-link')
             .transition().duration(500)
-            .attr('opacity', (d: any) => (node.id === d.source.id || node.id === d.target.id) ? 1 : .2)
-            .attr('stroke', (d: any) => (node.id === d.source.id || node.id === d.target.id) ? '#000000e6' : '#999');
+            .attr('opacity', (d: any) => (node.id === d.source.id || node.id === d.target.id) ? 1 : .2);
 
         nodeLabels
             .transition().duration(500)
@@ -460,8 +462,7 @@ function runForceGraph(
 
         arrowheads
             .transition().duration(500)
-            .attr('opacity', (d: any) => (node.id === d.source.id || node.id === d.target.id) ? 1 : .2)
-            .attr('fill', (d: any) => (node.id === d.source.id || node.id === d.target.id) ? '#000000e6' : '#999');
+            .attr('opacity', (d: any) => (node.id === d.source.id || node.id === d.target.id) ? 1 : .2);
     }
     
     function mouseOut() {
@@ -472,8 +473,7 @@ function runForceGraph(
     
         d3.selectAll('.port-link, .file-version-link, .network-activity-link')
             .transition().duration(250)
-            .attr('opacity', 1)
-            .attr('stroke', '#999');
+            .attr('opacity', 1);
 
         nodeLabels
             .transition().duration(250)
@@ -481,8 +481,7 @@ function runForceGraph(
 
         arrowheads
             .transition().duration(250)
-            .attr('opacity', 1)
-            .attr('fill', '#999');
+            .attr('opacity', 1);
     }
 
     return {
@@ -551,4 +550,8 @@ function groupDragging (simulation: any, nodes: any) {
         .on('start', dragStarted)
         .on('drag', drag)
         .on('end', dragStopped);
+}
+
+function getLinkColor(link: any) {
+    return connectionIntensityColorScale(link.byteProportion);
 }

@@ -160,68 +160,22 @@ export default function LiveAnalysis({width, height}: any) {
     }, [aggregationGranularity, endDateTime, startDateTime, fileVersions, networkActivities]);
 
     useEffect(() => {
-        const tempPortLinks = [];
-        ports.forEach((portNode: any) => {
-            const portLink =  {
-                id: `port_${portNode.portNumber}_of_${portNode.hostName}`,
-                source: portNode,
-                target: null
-            }
-            if (portNode.processes) {
-                portNode.processes.forEach((processId: string) => {
-                    portLink.target = processes.filter((process: any) => processId === process.id)[0];
-                })
-            } else {
-                portLink.target = endpoints.filter((endpoint: any) => portNode.hostName === endpoint.hostName)[0];
-            }
-            tempPortLinks.push(portLink);
-        });
-        setPortLinks(tempPortLinks);
+        setPortLinks(getPortLinkDataArray(ports, endpoints, processes));
     }, [endpoints, ports, processes]);
 
     useEffect(() => {
-        const tempFileVersionLinks = new Map();
-        fileVersions
-            .filter((d: FileVersionType) => d.timestamp > brushedStartDateTime.toMillis() && d.timestamp < brushedEndDateTime.toMillis())
-            .forEach((d: FileVersionType) => {
-                const linkId = `${d.source}->${d.target}`;
-                let link = tempFileVersionLinks.get(linkId);
-                if(!link) {
-                    tempFileVersionLinks.set(linkId, {
-                        id: linkId, 
-                        target: files.filter((file: FileNodeType) => file.id === d.target)[0],
-                        source: processes.filter((process: ProcessNodeType) => process.id === d.source)[0],
-                        fileVersions: [d]
-                    });
-                } else {
-                    link.fileVersions.push(d);
-                    tempFileVersionLinks.set(linkId, link);
-                }
-            });
-        setFileVersionLinks(Array.from(tempFileVersionLinks).map((d: any) => d[1]));
+        setFileVersionLinks(
+            Array
+                .from(getLinkDataMap(fileVersions, processes, files, brushedStartDateTime, brushedEndDateTime))
+                .map((d: any) => d[1]));
     }, [brushedEndDateTime, brushedStartDateTime, fileVersions, files, processes]);
 
     useEffect(() => {
-        const tempNetworkActivityLinks = new Map();
-        networkActivities
-            .filter((d: NetworkActivityType) => d.timestamp > brushedStartDateTime.toMillis() && d.timestamp < brushedEndDateTime.toMillis())
-            .forEach((d: NetworkActivityType) => {
-                const linkId = `${d.source}->${d.target}`;
-                let link = tempNetworkActivityLinks.get(linkId);
-                if(!link) {
-                    tempNetworkActivityLinks.set(linkId, {
-                        id: linkId, 
-                        target: ports.filter((port: PortNodeType) => port.id === d.target)[0],
-                        source: ports.filter((port: PortNodeType) => port.id === d.source)[0],
-                        networkActivity: [d]
-                    });
-                } else {
-                    link.networkActivity.push(d);
-                    tempNetworkActivityLinks.set(linkId, link);
-                }
-            });
-        setNetworkActivityLinks(Array.from(tempNetworkActivityLinks).map((d: any) => d[1]));
-    }, [brushedEndDateTime, brushedStartDateTime, ports, networkActivities, processes]);
+        setNetworkActivityLinks(
+            Array
+                .from(getLinkDataMap(networkActivities, ports, ports, brushedStartDateTime, brushedEndDateTime))
+                .map((d: any) => d[1]));
+    }, [brushedEndDateTime, brushedStartDateTime, ports, networkActivities]);
 
     const handleBrushChange = (domain: Bounds | null) => {
         if (!domain) return;
@@ -401,4 +355,52 @@ export default function LiveAnalysis({width, height}: any) {
             </Grid> */}
         </Grid>
     )
+}
+
+function getPortLinkDataArray(ports: PortNodeType[], endpoints: EndpointNodeType[], processes: ProcessNodeType[]): any[] {
+    const tempPortLinks = [];
+    ports.forEach((portNode: any) => {
+        const portLink =  {
+            id: `port_${portNode.portNumber}_of_${portNode.hostName}`,
+            source: portNode,
+            target: null
+        }
+        if (portNode.processes) {
+            portNode.processes.forEach((processId: string) => {
+                portLink.target = processes.filter((process: any) => processId === process.id)[0];
+            })
+        } else {
+            portLink.target = endpoints.filter((endpoint: any) => portNode.hostName === endpoint.hostName)[0];
+        }
+        tempPortLinks.push(portLink);
+    });
+    return tempPortLinks;
+}
+
+function getLinkDataMap(activities: any[], sourceNodes: any[], targetNodes: any[], startTime: DateTime, endTime: DateTime): Map<string, object> {
+    const returnMap = new Map();
+    let overallBytes = 0;
+    activities
+        .filter((d: any) => d.timestamp > startTime.toMillis() && d.timestamp < endTime.toMillis())
+        .forEach((d: any) => {
+            const linkId = `${d.source}->${d.target}`;
+            overallBytes += d.length ? d.length : d.fileSize;
+            let link = returnMap.get(linkId);
+            if(!link) {
+                returnMap.set(linkId, {
+                    id: linkId, 
+                    target: targetNodes.filter((node: any) => node.id === d.target)[0],
+                    source: sourceNodes.filter((node: any) => node.id === d.source)[0],
+                    overallLinkBytes: d.length ? d.length : d.fileSize,
+                    byteProportion: d.length ?  d.length / overallBytes : d.fileSize / overallBytes,
+                    activities: [d]
+                });
+            } else {
+                link.overallLinkBytes += d.length ? d.length : d.fileSize;
+                link.byteProportion = link.overallLinkBytes / overallBytes;
+                link.activities.push(d);
+                returnMap.set(linkId, link);
+            }
+        });
+    return returnMap;
 }
