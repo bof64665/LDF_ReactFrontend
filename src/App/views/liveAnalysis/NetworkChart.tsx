@@ -132,12 +132,12 @@ function runForceGraph(
         .attr('class', 'marker')
         .attr('id', (d: any) => `${d.id}_arrowhead`)
         .attr('viewBox','-0 -5 10 10')
-         .attr('refX', 0)
-         .attr('refY', 0)
-         .attr('orient','auto')
-            .attr('markerWidth',13)
-            .attr('markerHeight',13)
-            .attr('xoverflow','visible')
+        .attr('refX', 0)
+        .attr('refY', 0)
+        .attr('orient','auto')
+        .attr('markerWidth',13)
+        .attr('markerHeight',13)
+        .attr('xoverflow','visible')
         .append('path')
         .attr('d', 'M 0 -3 L 6 0 L 0 3')
         .attr('fill', '#999')
@@ -166,7 +166,9 @@ function runForceGraph(
         .attr('class', 'file-version-link')
         .attr('stroke', '#999')
         .attr('fill', 'none')
-        .attr('stroke-width', 2);
+        .attr('stroke-width', 3)
+        .on('mouseover', linkMouseOver)
+        .on('mouseout', mouseOut);
 
     const fileVersionMarkerPath = svg.append('g')
         .attr('class', 'fileVersionMarkerPath')
@@ -186,7 +188,9 @@ function runForceGraph(
         .attr('class', 'network-activity-link')
         .attr('stroke', '#999')
         .attr('fill', 'none')
-        .attr('stroke-width', 2);
+        .attr('stroke-width', 3)
+        .on('mouseover', linkMouseOver)
+        .on('mouseout', mouseOut);
 
     const networkActivityMarkerPath = svg.append('g')
         .attr('class', 'networkActivityMarkerPath')
@@ -210,7 +214,7 @@ function runForceGraph(
         .attr('r', settings.nodeRadius)
         .attr('fill', (d: any) => nodeTypeColorScale(d.hostName))
         .on('mouseover', nodeMouseOver)
-        .on('mouseout', nodeMouseOut)
+        .on('mouseout', mouseOut)
         .call(nodeDragging(forceSimulation, settings));
 
     processNodes.append('title')
@@ -227,7 +231,7 @@ function runForceGraph(
         .attr('stroke-width', settings.nodeStrokeWidth)
         .attr('fill', (d: any) => nodeTypeColorScale(d.hostName))
         .on('mouseover', nodeMouseOver)
-        .on('mouseout', nodeMouseOut)
+        .on('mouseout', mouseOut)
         .call(nodeDragging(forceSimulation, settings))
         
     portNodes.append('title')
@@ -244,7 +248,7 @@ function runForceGraph(
         .attr('stroke-width', settings.nodeStrokeWidth)
         .attr('fill', (d: any) => nodeTypeColorScale(d.hostName))
         .on('mouseover', nodeMouseOver)
-        .on('mouseout', nodeMouseOut)
+        .on('mouseout', mouseOut)
         .call(nodeDragging(forceSimulation, settings));
 
     fileNodes.append('title')
@@ -263,7 +267,7 @@ function runForceGraph(
         .attr('height', settings.nodeRadius * 2)
         .attr('fill', (d: any) => nodeTypeColorScale(d.hostName))
         .on('mouseover', nodeMouseOver)
-        .on('mouseout', nodeMouseOut)
+        .on('mouseout', mouseOut)
         .call(nodeDragging(forceSimulation, settings));
 
     endpointNodes.append('title')
@@ -288,7 +292,7 @@ function runForceGraph(
             return d.name; // default = process node
         })
         .on('mouseover', nodeMouseOver)
-        .on('mouseout', nodeMouseOut)
+        .on('mouseout', mouseOut)
         .call(nodeDragging(forceSimulation, settings));
 
     const paths = groups.selectAll('.path_placeholder')
@@ -414,6 +418,27 @@ function runForceGraph(
         });
     };
 
+    function linkMouseOver(event: any, link: any) {
+        d3.selectAll('.file-node, .process-node, .port-node, .endpoint-node')
+            .transition().duration(500)
+            .attr('opacity', (d: any) => d.id === link.target.id || d.id === link.source.id ? 1 : .2)
+            .attr('stroke', (d: any) => d.id === link.target.id || d.id === link.source.id ? '#000000e6' : '#fff');
+
+        d3.selectAll('.port-link, .file-version-link, .network-activity-link')
+            .transition().duration(500)
+            .attr('opacity', (d: any) => link.id === d.id ? 1 : .2)
+            .attr('stroke', (d: any) => link.id === d.id ? '#000000e6' : '#999');
+
+        nodeLabels
+            .transition().duration(500)
+            .attr('opacity', (d: any) => d.id === link.target.id || d.id === link.source.id ? 1 : .2);
+
+        arrowheads
+            .transition().duration(500)
+            .attr('opacity', (d: any) => link.id === d.id ? 1 : .2)
+            .attr('fill', (d: any) => link.id === d.id ? '#000000e6' : '#999');
+    }
+
     function nodeMouseOver(event: any, node: any) {
         const neighborNodesIDs = [...portLinkData, ...fileVersionLinkData, ...networkActivityLinkData]
             .filter((link: any) => link.source.id === node.id || link.target.id === node.id)
@@ -421,25 +446,25 @@ function runForceGraph(
 
         d3.selectAll('.file-node, .process-node, .port-node, .endpoint-node')
             .transition().duration(500)
-            .attr('opacity', (d: any) => node.id === d.id || neighborNodesIDs.indexOf (d.id) > -1 ? 1 : .4)
+            .attr('opacity', (d: any) => node.id === d.id || neighborNodesIDs.indexOf (d.id) > -1 ? 1 : .2)
             .attr('stroke', (d: any) => node.id === d.id || neighborNodesIDs.indexOf (d.id) > -1 ? '#000000e6' : '#fff');
     
         d3.selectAll('.port-link, .file-version-link, .network-activity-link')
             .transition().duration(500)
-            .attr('opacity', (d: any) => (node.id === d.source.id || node.id === d.target.id) ? 1 : .4)
+            .attr('opacity', (d: any) => (node.id === d.source.id || node.id === d.target.id) ? 1 : .2)
             .attr('stroke', (d: any) => (node.id === d.source.id || node.id === d.target.id) ? '#000000e6' : '#999');
 
         nodeLabels
             .transition().duration(500)
-            .attr('opacity', (d: any) => node.id === d.id || neighborNodesIDs.indexOf (d.id) > -1 ? 1 : 0.2);
+            .attr('opacity', (d: any) => node.id === d.id || neighborNodesIDs.indexOf (d.id) > -1 ? 1 : .2);
 
         arrowheads
             .transition().duration(500)
-            .attr('opacity', (d: any) => (node.id === d.source.id || node.id === d.target.id) ? 1 : .4)
+            .attr('opacity', (d: any) => (node.id === d.source.id || node.id === d.target.id) ? 1 : .2)
             .attr('fill', (d: any) => (node.id === d.source.id || node.id === d.target.id) ? '#000000e6' : '#999');
     }
     
-    function nodeMouseOut(event: any, node: any) {
+    function mouseOut() {
         d3.selectAll('.file-node, .process-node, .port-node, .endpoint-node')
             .transition().duration(250)
             .attr('opacity', 1)
