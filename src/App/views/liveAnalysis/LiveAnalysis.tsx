@@ -19,6 +19,7 @@ import EventTimeline from "./EventTimeline";
 import NetworkChart from "./NetworkChart";
 import { PortNodeType, ProcessNodeType, FileNodeType, EndpointNodeType, FileVersionType, NetworkActivityType } from './mockdata';
 import { cloneDeep } from 'lodash';
+import { timeFormat } from 'd3';
 
 const GET_AVAILABLE_DATA_RANGE = gql`
     query GetDataAvailability {
@@ -97,6 +98,12 @@ export default function LiveAnalysis({width, height}: any) {
 
     const  [getAnalysisData, {loading: loadingAnalysisData, error: errorAnalysisData, data: analysisData}] = 
         useLazyQuery(GET_ANALYSIS_DATA, {pollInterval: 50000});
+
+    const bucketAxisTimeFormat = (date: any) => {
+        const startDateTime = DateTime.fromMillis(date);
+        const endDateTime = startDateTime.plus({milliseconds: aggregationGranularity});
+        return timeFormat(`${startDateTime.toFormat('dd.LL, HH:mm:ss')} - ${endDateTime.toFormat('dd.LL, HH:mm:ss')}`)
+    }
 
     useEffect(() => {
         if(!availableDateRange || loadingAvailableDateRange || errorAvailableDateRange) return;
@@ -348,6 +355,7 @@ export default function LiveAnalysis({width, height}: any) {
                                 endDateTime={endDateTime}
                                 data={Array.from(dataBuckets).map((d: any) => d[1])}
                                 brushedData={Array.from(brushedDataBuckets).map((d: any) => d[1])}
+                                customBucketAxisTimeFormat={bucketAxisTimeFormat}
                                 onBrushChange={handleBrushChange}
                                 onBrushReset={handleBrushReset}
                             />

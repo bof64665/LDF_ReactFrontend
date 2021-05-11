@@ -8,7 +8,7 @@ import { Bar} from "@visx/shape";
 import { Bounds } from '@visx/brush/lib/types';
 import BaseBrush from '@visx/brush/lib/BaseBrush';
 import { max } from 'd3-array';
-import { DateTime } from 'luxon'; 
+import { DateTime } from 'luxon';
 
 type EventTimeLineProps = {
     width: number;
@@ -17,6 +17,7 @@ type EventTimeLineProps = {
     endDateTime: DateTime,
 	data: any[];
     brushedData: any[];
+    customBucketAxisTimeFormat: any;
 	onBrushChange(domain: Bounds | null): void;
 	onBrushReset(): void;
 }
@@ -124,7 +125,9 @@ export default function EventTimeline(props: EventTimeLineProps) {
                     numTicks={4} />
                 <AxisBottom
                     top={yMax}
-                    scale={xTimeScale} />
+                    scale={xBandScale} 
+                    numTicks={5}
+                    tickFormat={props.customBucketAxisTimeFormat}/>
             </Group>
         </svg>
     );
