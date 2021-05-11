@@ -124,8 +124,13 @@ function runForceGraph(
         .attr('height', height > 15 ? height-15 : height)
         .attr('viewBox', `${-width / 2} ${-height / 2} ${width} ${height > 15 ? height-15: height}`);
     
-    svg.append('defs').append('marker')
-        .attr("id",'arrowhead')
+    const arrowheads = svg.append('defs')
+        .attr('class', 'markers')
+        .selectAll('.marker')
+        .data([...fileVersionLinkData, ...networkActivityLinkData])
+        .join('marker')
+        .attr('class', 'marker')
+        .attr('id', (d: any) => `${d.id}_arrowhead`)
         .attr('viewBox','-0 -5 10 10')
          .attr('refX', 0)
          .attr('refY', 0)
@@ -134,7 +139,7 @@ function runForceGraph(
             .attr('markerHeight',13)
             .attr('xoverflow','visible')
         .append('path')
-        .attr('d', 'M 0 -2.5 L 5 0 L 0 2.5')
+        .attr('d', 'M 0 -3 L 6 0 L 0 3')
         .attr('fill', '#999')
         .style('stroke','none');
 
@@ -170,7 +175,7 @@ function runForceGraph(
         .join('path')
         .attr('stroke-opacity', .5)
         .attr('stroke-width', 1.5)
-        .attr('marker-mid', 'url(#arrowhead)');
+        .attr('marker-mid', (d: any) => `url(#${d.id}_arrowhead)`);
 
     const networkActivityLinks = svg.append('g')
         .attr('class', 'networkActivityLinks')
@@ -191,7 +196,7 @@ function runForceGraph(
         .attr('fill', 'none')
         .attr('stroke-opacity', .5)
         .attr('stroke-width', 1.5)
-        .attr('marker-end', 'url(#arrowhead)');
+        .attr('marker-end', (d: any) => `url(#${d.id}_arrowhead)`);
 
     const processNodes = svg.append('g')
         .attr('class', 'processNodes')
@@ -273,8 +278,9 @@ function runForceGraph(
     nodeLabels.append("text")
         .attr('x', -7)
         .attr('y', '0.29em')
-        .attr('class', 'shadow')
+        .attr('class', 'node-text')
         .attr('font-size', '0.6em')
+        .attr('cursor', 'default')
         .text((d:any) => {
             if (d.portNumber) return `:${d.portNumber}`; // port nodes
             if (d.type) return `.${d.type}`; // file nodes
@@ -409,28 +415,49 @@ function runForceGraph(
     };
 
     function nodeMouseOver(event: any, node: any) {
+        const neighborNodesIDs = [...portLinkData, ...fileVersionLinkData, ...networkActivityLinkData]
+            .filter((link: any) => link.source.id === node.id || link.target.id === node.id)
+            .map((link: any) => link.source.id === node.id ? link.target.id : link.source.id);
+
         d3.selectAll('.file-node, .process-node, .port-node, .endpoint-node')
             .transition().duration(500)
-            .attr('stroke', (d: any) => {
-                const neighborNodeIds = [...portLinkData, ...fileVersionLinkData, ...networkActivityLinkData]
-                    .filter((link: any) => link.source.id === node.id || link.target.id === node.id)
-                    .map((link: any) => link.source.id === node.id ? link.target.id : link.source.id);
-                return node.id === d.id || neighborNodeIds.indexOf (d.id) > -1 ? '#a5c639' : '#fff';
-            });
+            .attr('opacity', (d: any) => node.id === d.id || neighborNodesIDs.indexOf (d.id) > -1 ? 1 : .4)
+            .attr('stroke', (d: any) => node.id === d.id || neighborNodesIDs.indexOf (d.id) > -1 ? '#000000e6' : '#fff');
     
         d3.selectAll('.port-link, .file-version-link, .network-activity-link')
             .transition().duration(500)
-            .attr('stroke', (d: any) => (node.id === d.source.id || node.id === d.target.id) ? '#a5c639' : '#999');
+            .attr('opacity', (d: any) => (node.id === d.source.id || node.id === d.target.id) ? 1 : .4)
+            .attr('stroke', (d: any) => (node.id === d.source.id || node.id === d.target.id) ? '#000000e6' : '#999');
+
+        nodeLabels
+            .transition().duration(500)
+            .attr('opacity', (d: any) => node.id === d.id || neighborNodesIDs.indexOf (d.id) > -1 ? 1 : 0.2);
+
+        arrowheads
+            .transition().duration(500)
+            .attr('opacity', (d: any) => (node.id === d.source.id || node.id === d.target.id) ? 1 : .4)
+            .attr('fill', (d: any) => (node.id === d.source.id || node.id === d.target.id) ? '#000000e6' : '#999');
     }
     
     function nodeMouseOut(event: any, node: any) {
         d3.selectAll('.file-node, .process-node, .port-node, .endpoint-node')
             .transition().duration(250)
+            .attr('opacity', 1)
             .attr('stroke', '#fff');
     
         d3.selectAll('.port-link, .file-version-link, .network-activity-link')
-            .transition().duration(500)
+            .transition().duration(250)
+            .attr('opacity', 1)
             .attr('stroke', '#999');
+
+        nodeLabels
+            .transition().duration(250)
+            .attr('opacity', 1);
+
+        arrowheads
+            .transition().duration(250)
+            .attr('opacity', 1)
+            .attr('fill', '#999');
     }
 
     return {
@@ -456,7 +483,6 @@ function polygonGenerator(groupId: string, nodes: any) {
 function nodeDragging (simulation: any, settings: any) {
     function dragStarted(event: any, node: any) {
         if(!event.active) simulation.alpha(0.9).restart();
-        d3.select(this).attr('r',   settings.nodeRadius * 2);
     }
 
     function drag(event: any, node: any) {
@@ -466,8 +492,7 @@ function nodeDragging (simulation: any, settings: any) {
     function dragStopped(event: any, node: any) {
         simulation.alpha(0.9).restart();
         d3.select(this)
-            .attr('fx', node.x = event.x).attr('fy', node.y = event.y)
-            .attr('r', settings.nodeRadius);
+            .attr('fx', node.x = event.x).attr('fy', node.y = event.y);
     }
 
     return d3.drag()
