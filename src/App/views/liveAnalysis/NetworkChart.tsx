@@ -127,14 +127,14 @@ function runForceGraph(
     svg.append('defs').append('marker')
         .attr("id",'arrowhead')
         .attr('viewBox','-0 -5 10 10')
-         .attr('refX', 10)
+         .attr('refX', 0)
          .attr('refY', 0)
          .attr('orient','auto')
             .attr('markerWidth',13)
             .attr('markerHeight',13)
             .attr('xoverflow','visible')
-        .append('svg:path')
-        .attr('d', 'M 0 -5 L 10 0 L 0 5')
+        .append('path')
+        .attr('d', 'M 0 -2.5 L 5 0 L 0 2.5')
         .attr('fill', '#999')
         .style('stroke','none');
 
@@ -163,6 +163,15 @@ function runForceGraph(
         .attr('fill', 'none')
         .attr('stroke-width', 2);
 
+    const fileVersionMarkerPath = svg.append('g')
+        .attr('class', 'fileVersionMarkerPath')
+        .selectAll('path.marker')
+        .data(fileVersionLinkData)
+        .join('path')
+        .attr('stroke-opacity', .5)
+        .attr('stroke-width', 1.5)
+        .attr('marker-mid', 'url(#arrowhead)');
+
     const networkActivityLinks = svg.append('g')
         .attr('class', 'networkActivityLinks')
         .selectAll('path.marker')
@@ -174,8 +183,8 @@ function runForceGraph(
         .attr('fill', 'none')
         .attr('stroke-width', 2);
 
-    const testMarkerPath = svg.append('g')
-        .attr('class', 'testMarker')
+    const networkActivityMarkerPath = svg.append('g')
+        .attr('class', 'networkActivityMarkerPath')
         .selectAll('path.marker')
         .data(networkActivityLinkData)
         .join('path')
@@ -340,7 +349,7 @@ function runForceGraph(
             .attr('x2', (d: any) => d.target.x)
             .attr('y2', (d: any) => d.target.y);
 
-        networkActivityLinks.attr("d", (d: any) => {
+        networkActivityLinks.attr('d', (d: any) => {
 				const r = Math.hypot(d.target.x - d.source.x, d.target.y - d.source.y);
 				return `
     			M${d.source.x},${d.source.y}
@@ -348,7 +357,13 @@ function runForceGraph(
   			`;
 		});
 
-        testMarkerPath.attr("d", (d: any) => {
+        fileVersionMarkerPath.attr('d', (d: any) => 
+            `M ${d.source.x} ${d.source.y} 
+            L ${(d.target.x + d.source.x) / 2} ${(d.target.y + d.source.y) / 2}
+            L ${d.target.x} ${d.target.y}`
+        );
+
+        networkActivityMarkerPath.attr('d', (d: any) => {
             var dx = d.target.x - d.source.x,
                 dy = d.target.y - d.source.y,
                 dr = Math.sqrt(dx * dx + dy * dy);
@@ -370,7 +385,7 @@ function runForceGraph(
             endX = endX + (dy * len/dr);
             endY = endY + (-dx * len/dr);
               
-            return "M" + d.source.x + "," + d.source.y + "A" + dr + "," + dr + " 0 0,1 " + endX + "," + endY;
+            return `M ${d.source.x} ${d.source.y} A ${dr} ${dr} 0 0 1 ${endX} ${endY}`;
         });
     }
 
