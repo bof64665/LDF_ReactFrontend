@@ -4,7 +4,7 @@ import clsx from 'clsx';
 import { createStyles, makeStyles, Theme } from '@material-ui/core/styles';
 import Grid from '@material-ui/core/Grid'
 import Toolbar from "@material-ui/core/Toolbar";
-import Navigation from "./navigation/Navigation";
+import Navigation from "./views/navigation/Navigation";
 import LiveAnalysis from "./views/liveAnalysis/LiveAnalysis";
 import CssBaseline from "@material-ui/core/CssBaseline";
 import Quantity from "./views/toolSelection/Quantity";

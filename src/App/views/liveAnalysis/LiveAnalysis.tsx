@@ -17,9 +17,14 @@ import { Bounds } from '@visx/brush/lib/types';
 import ParentSize from "@visx/responsive/lib/components/ParentSize";
 import EventTimeline from "./EventTimeline";
 import NetworkChart from "./NetworkChart";
-import { PortNodeType, ProcessNodeType, FileNodeType, EndpointNodeType, FileVersionType, NetworkActivityType } from './mockdata';
 import { cloneDeep } from 'lodash';
 import { timeFormat } from 'd3';
+import { Port } from '../../models/Port';
+import { Process } from '../../models/Process';
+import { File } from '../../models/File';
+import { Endpoint } from '../../models/Endpoint';
+import { NetworkActivity } from '../../models/NetworkActivity';
+import { FileVersion } from '../../models/FileVersion';
 
 const GET_AVAILABLE_DATA_RANGE = gql`
     query GetDataAvailability {
@@ -79,14 +84,14 @@ export default function LiveAnalysis({width, height}: any) {
     const [dateSelectionErr, setDateSelectionErr] = useState<boolean>(false);
     const [aggregationGranularity, setAggregationGranularity] = useState<number>(60000);
 
-    const [ports, setPorts] = useState<PortNodeType[]>([]);
-    const [processes, setProcesses] = useState<ProcessNodeType[]>([]);
-    const [files, setFiles] = useState<FileNodeType[]>([]);
-    const [endpoints, setEndpoints] = useState<EndpointNodeType[]>([]);
-    const [fileVersions, setFileVersions] = useState<FileVersionType[]>([]);
-    const [networkActivities, setNetworkActivities] = useState<NetworkActivityType[]>([]);
+    const [ports, setPorts] = useState<Port[]>([]);
+    const [processes, setProcesses] = useState<Process[]>([]);
+    const [files, setFiles] = useState<File[]>([]);
+    const [endpoints, setEndpoints] = useState<Endpoint[]>([]);
+    const [fileVersions, setFileVersions] = useState<FileVersion[]>([]);
+    const [networkActivities, setNetworkActivities] = useState<NetworkActivity[]>([]);
 
-    const [portLinks, setPortLinks] = useState<{id: string, target: PortNodeType, source: ProcessNodeType | EndpointNodeType}[]>([]);
+    const [portLinks, setPortLinks] = useState<{id: string, target: Port, source: Process | Endpoint}[]>([]);
     const [fileVersionLinks, setFileVersionLinks] = useState<any[]>([]);
     const [networkActivityLinks, setNetworkActivityLinks] = useState<any[]>([]);
 
@@ -94,10 +99,10 @@ export default function LiveAnalysis({width, height}: any) {
     const [brushedDataBuckets, setBrushedDataBuckets] = useState<Map<number, any>>(new Map());
 
     const { loading: loadingAvailableDateRange, error: errorAvailableDateRange, data: availableDateRange } = 
-        useQuery(GET_AVAILABLE_DATA_RANGE, {pollInterval: 50000});
+        useQuery(GET_AVAILABLE_DATA_RANGE);
 
-    const  [getAnalysisData, {loading: loadingAnalysisData, error: errorAnalysisData, data: analysisData}] = 
-        useLazyQuery(GET_ANALYSIS_DATA, {pollInterval: 50000});
+    const [getAnalysisData, {loading: loadingAnalysisData, error: errorAnalysisData, data: analysisData}] = 
+        useLazyQuery(GET_ANALYSIS_DATA);
 
     const bucketAxisTimeFormat = (date: any) => {
         const startDateTime = DateTime.fromMillis(date);
@@ -189,7 +194,7 @@ export default function LiveAnalysis({width, height}: any) {
 
         // identify all activities that are within current brushed borders
         // and add them to the respective data bucket from above
-        [...fileVersions, ...networkActivities].forEach((activity: any) => {
+        [...fileVersions, ...networkActivities].forEach((activity: FileVersion | NetworkActivity) => {
             if(activity.timestamp > x0 && activity.timestamp < x1) {
                 const versionBinTimestamp = Math.floor(activity.timestamp / aggregationGranularity);
                 const bin = tempBrushedDataBuckets.get(versionBinTimestamp);
@@ -230,7 +235,7 @@ export default function LiveAnalysis({width, height}: any) {
                                 maxDate={endDateTime}
                                 maxDateMessage={`Needs to be before ${endDateTime.toFormat('MMM dd, yyyy - HH:mm')}`}
                                 value={startDateTime} 
-                                onChange={(date: any) => {
+                                onChange={(date: DateTime) => {
                                     setStartDateTime(date);
                                     setDateSelectionErr((date >= minDateTime && date <= endDateTime) ? false : true);
                                 }}
@@ -260,7 +265,7 @@ export default function LiveAnalysis({width, height}: any) {
                                     maxDate={maxDateTime}
                                     maxDateMessage={`No data after ${maxDateTime.toFormat('MMM dd, yyyy - HH:mm')}`}
                                     value={endDateTime} 
-                                    onChange={(date: any) => {
+                                    onChange={(date: DateTime) => {
                                         setEndDateTime(date);
                                         setDateSelectionErr((date <= maxDateTime && date >= startDateTime) ? false : true);
                                     }}
@@ -325,13 +330,13 @@ export default function LiveAnalysis({width, height}: any) {
                             <NetworkChart
                                 width={visWidth}
                                 height={visHeight}
-                                processNodes={processes}
-                                portNodes={ports}
-                                fileNodes={files}
-                                endpointNodes={endpoints}
-                                portLinks={portLinks}
-                                fileVersionLinks={fileVersionLinks}
-                                networkActivityLinks={networkActivityLinks}
+                                processesData={processes}
+                                portsData={ports}
+                                filesData={files}
+                                endpointsData={endpoints}
+                                portLinksData={portLinks}
+                                fileVersionLinksData={fileVersionLinks}
+                                networkActivityLinksData={networkActivityLinks}
                             />
                         )}
                     </ParentSize>
@@ -357,9 +362,9 @@ export default function LiveAnalysis({width, height}: any) {
     )
 }
 
-function getPortLinkDataArray(ports: PortNodeType[], endpoints: EndpointNodeType[], processes: ProcessNodeType[]): any[] {
+function getPortLinkDataArray(ports: Port[], endpoints: Endpoint[], processes: Process[]): any[] {
     const tempPortLinks = [];
-    ports.forEach((portNode: any) => {
+    ports.forEach((portNode: Port) => {
         const portLink =  {
             id: `port_${portNode.portNumber}_of_${portNode.hostName}`,
             source: portNode,
@@ -367,10 +372,10 @@ function getPortLinkDataArray(ports: PortNodeType[], endpoints: EndpointNodeType
         }
         if (portNode.processes) {
             portNode.processes.forEach((processId: string) => {
-                portLink.target = processes.filter((process: any) => processId === process.id)[0];
+                portLink.target = processes.filter((process: Process) => processId === process.id)[0];
             })
         } else {
-            portLink.target = endpoints.filter((endpoint: any) => portNode.hostName === endpoint.hostName)[0];
+            portLink.target = endpoints.filter((endpoint: Endpoint) => portNode.hostName === endpoint.hostName)[0];
         }
         tempPortLinks.push(portLink);
     });
