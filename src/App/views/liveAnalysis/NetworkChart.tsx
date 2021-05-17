@@ -4,7 +4,6 @@ import { WithTooltipProvidedProps } from '@visx/tooltip/lib/enhancers/withToolti
 import * as d3 from 'd3';
 import { scaleLinear, scaleOrdinal } from '@visx/scale';
 import { Legend, LegendItem, LegendLabel, LegendOrdinal } from '@visx/legend';
-import { GlyphTriangle, GlyphDiamond, GlyphCircle, GlyphSquare } from '@visx/glyph';
 import forceInABox from './forceInABox';
 import { Endpoint } from '../../models/Endpoint';
 import React from 'react';
@@ -50,26 +49,43 @@ const connectionIntensityColorScale = scaleLinear({
 	range: ['#425fbd', '#d93b26'],
 });
 
-const shapeScale = scaleOrdinal<string, React.FC | React.ReactNode>({
-    domain: ['Process', 'Port', 'File', 'External IP'],
-    range: [
-      <GlyphCircle key="Process" size={225} top={50 / 6} left={50 / 6} fill="#dd59b8" />,
-      <GlyphDiamond key="Port" size={225} top={50 / 6} left={50 / 6} fill="#de6a9a" />,
-      <GlyphTriangle key="File" size={225} top={50 / 6} left={50 / 6} fill="#de7d7b" />,
-      <GlyphSquare key="External IP" size={225} top={50 / 6} left={50 / 6} fill="#df905f" />,
-      () => (
-        <text key="e" fontSize="12" dy="1em" dx=".33em" fill="#e0a346">
-          $
-        </text>
-      ),
-    ],
-  });
-
 const settings = {
     nodeRadius: 17,
+    legendNodeRadius: 6.5,
     nodeStrokeWidth: 1.5,
     hoverFactor: 0.25,
 };
+const triangleHeight = Math.sqrt(3) * settings.nodeRadius;
+const legendTriangleHeight = Math.sqrt(3) * settings.legendNodeRadius;
+
+const shapeScale = scaleOrdinal<string, React.FC | React.ReactNode>({
+    domain: ['Process', 'Port', 'File', 'EndPoint'],
+    range: [
+      <path 
+        d={`
+            M 1 ${settings.legendNodeRadius + 1}
+            a ${settings.legendNodeRadius / 2} ${settings.legendNodeRadius / 2} 0 1 0 ${settings.legendNodeRadius * 2 } 0
+            a ${settings.legendNodeRadius} ${settings.legendNodeRadius} 0 1 0 ${-settings.legendNodeRadius * 2} 0
+        `} fill="#dd59b8" />,
+      <path d={`
+            M 1 ${settings.legendNodeRadius} 
+            L ${settings.legendNodeRadius} 1 
+            L ${settings.legendNodeRadius * 2 - 1} ${settings.legendNodeRadius} 
+            L ${settings.legendNodeRadius} ${settings.legendNodeRadius * 2 - 1 } Z
+      `} fill="#dd59b8" />,
+      <path d={`
+            M 1 ${legendTriangleHeight}
+            L ${settings.legendNodeRadius * 2 - 1} ${legendTriangleHeight}
+            L ${settings.legendNodeRadius} 1 Z
+      `} fill="#dd59b8" />,
+      <path d={`
+            M 1 1
+            L 1 ${settings.legendNodeRadius * 2}
+            L ${settings.legendNodeRadius * 2} ${settings.legendNodeRadius * 2}
+            L ${settings.legendNodeRadius * 2} 0 Z
+      `} fill="#dd59b8" />,
+    ],
+  });
 
 type NetworkChartProps = {
     width: number;
@@ -102,6 +118,7 @@ export default withTooltip<NetworkChartProps, any>(
     const svgRef = useRef();
 
     const [hiddenHosts, setHiddenHosts] = useState([]);
+    const [hiddenNodeTypes, setHiddenNodeTypes] = useState([]);
     const [displayedNodes, setDisplayedNodes] = useState([]);
     const [displayedLinks, setDisplayedLinks] = useState([]);
 
@@ -375,7 +392,6 @@ export default withTooltip<NetworkChartProps, any>(
         
             const updateNodes = (): void => {
                 nodes.attr('d', (d: any) => {
-                    const triangleHeight = Math.sqrt(3) * (settings.nodeRadius * 0.9);
                     switch (d.__typename) {
                         case 'File':
                             return `
@@ -486,15 +502,16 @@ export default withTooltip<NetworkChartProps, any>(
         setDisplayedNodes(
             [...endpointsData, ...filesData, ...portsData, ...processesData]
                 .filter(node => !hiddenHosts.includes(node.hostName))
+                .filter(node => !hiddenNodeTypes.includes(node.__typename))
         );
-    }, [endpointsData, filesData, hiddenHosts, portsData, processesData])
+    }, [endpointsData, filesData, hiddenHosts, hiddenNodeTypes, portsData, processesData])
 
     useEffect(() => {
         setDisplayedLinks(
             [...portLinksData, ...fileVersionLinksData, ...networkActivityLinksData]
-                .filter(link => !hiddenHosts.includes(link.source.hostName) && !hiddenHosts.includes(link.target.hostName))
+                .filter(link => displayedNodes.includes(link.source) && displayedNodes.includes(link.target))
         );
-    }, [fileVersionLinksData, hiddenHosts, networkActivityLinksData, portLinksData])
+    }, [displayedNodes, fileVersionLinksData, networkActivityLinksData, portLinksData])
 
     useEffect(() => {
         let destroyFn;
@@ -526,12 +543,12 @@ export default withTooltip<NetworkChartProps, any>(
                                     key={`legend-host-${i}`}
                                     margin='0 0 5px'
                                     onClick={() => {
-                                        setHiddenHosts(prevHosts => (prevHosts.indexOf(label.datum) > -1) ? prevHosts.filter(host => host !== label.datum) : [...prevHosts, label.datum])
+                                        setHiddenHosts(prevHosts => prevHosts.includes(label.datum) ? prevHosts.filter(host => host !== label.datum) : [...prevHosts, label.datum])
                                     }}
                                 >
                                     <svg width='15' height='15'>
                                         <rect 
-                                            fill={ hiddenHosts.indexOf(label.datum) > -1 ? '#fff' : label.value }
+                                            fill={ hiddenHosts.includes(label.datum) ? '#fff' : label.value }
                                             stroke={label.value}
                                             strokeWidth='1.5'
                                             width='15' 
@@ -551,30 +568,31 @@ export default withTooltip<NetworkChartProps, any>(
                 <div className={clsx(classes.legendTitle)}>Nodes</div>
                 <Legend scale={shapeScale}>
                 {labels => (
-                    <div style={{ display: 'flex', flexDirection: 'row' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
                     {labels.map((label, i) => {
                         const color = '#000';
                         const shape = shapeScale(label.datum);
-                        const isValidElement = React.isValidElement(shape);
                         return (
                         <LegendItem
-                            key={`legend-quantile-${i}`}
-                            margin="0 4px 0 0"
-                            flexDirection="row"
+                            key={`legend-node-${i}`}
+                            margin='0 0 5px'
+                            onClick={() => {
+                                setHiddenNodeTypes(prevNodeTypes => prevNodeTypes.includes(label.datum) ? prevNodeTypes.filter(nodeType => nodeType !== label.datum) : [...prevNodeTypes, label.datum])
+                            }}
                         >
-                            <svg
-                            width={15}
-                            height={15}
-                            style={{ margin: '0 0 15px 0' }}
-                            >
-                            {isValidElement
-                                ? React.cloneElement(shape as React.ReactElement)
-                                : React.createElement(shape as React.ComponentType<{ fill: string }>, {
-                                    fill: color,
-                                })}
+                            <svg width={15} height={15}>
+                                {React.isValidElement(shape)
+                                    ? React.cloneElement(shape as React.ReactElement<{fill: any, stroke: any, strokeWidth: any}>, {
+                                        fill: hiddenNodeTypes.includes(label.datum) ? '#fff' : '#000',
+                                        stroke: '#000',
+                                        strokeWidth: '2',
+                                    })
+                                    : React.createElement(shape as React.ComponentType<{ fill: string }>, {
+                                        fill: color,
+                                    })}
                             </svg>
-                            <LegendLabel align="left" margin={0}>
-                            {label.text}
+                            <LegendLabel align="left" margin='0 0 0 4px'>
+                                {label.text}
                             </LegendLabel>
                         </LegendItem>
                         );
