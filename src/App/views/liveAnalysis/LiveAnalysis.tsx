@@ -91,18 +91,28 @@ export default function LiveAnalysis({width, height}: any) {
     const [fileVersions, setFileVersions] = useState<FileVersion[]>([]);
     const [networkActivities, setNetworkActivities] = useState<NetworkActivity[]>([]);
 
-    const [portLinks, setPortLinks] = useState<{id: string, target: Port, source: Process | Endpoint}[]>([]);
-    const [fileVersionLinks, setFileVersionLinks] = useState<any[]>([]);
-    const [networkActivityLinks, setNetworkActivityLinks] = useState<any[]>([]);
+    const [displayedPorts, setDisplayedPorts] = useState<Port[]>([]);
+    const [displayedProcesses, setDisplayedProcesses] = useState<Process[]>([]);
+    const [displayedFiles, setDisplayedFiles] = useState<File[]>([]);
+    const [displayedEndpoints, setDisplayedEndpoints] = useState<Endpoint[]>([]);
+    const [displayedPortLinks, setDisplayedPortLinks] = useState<{id: string, target: Port, source: Process | Endpoint}[]>([]);
+    const [displayedFileVersionLinks, setDisplayedFileVersionLinks] = useState<any[]>([]);
+    const [displayedNetworkActivityLinks, setDisplayedNetworkActivityLinks] = useState<any[]>([]);
 
     const [dataBuckets, setDataBuckets] = useState<Map<number, any>>(new Map());
     const [brushedDataBuckets, setBrushedDataBuckets] = useState<Map<number, any>>(new Map());
 
-    const { loading: loadingAvailableDateRange, error: errorAvailableDateRange, data: availableDateRange } = 
-        useQuery(GET_AVAILABLE_DATA_RANGE);
+    const { 
+        loading: loadingAvailableDateRange,
+        error: errorAvailableDateRange,
+        data: availableDateRange } =  useQuery(GET_AVAILABLE_DATA_RANGE);
 
-    const [getAnalysisData, {loading: loadingAnalysisData, error: errorAnalysisData, data: analysisData}] = 
-        useLazyQuery(GET_ANALYSIS_DATA);
+    const [
+        getAnalysisData, 
+        {
+            loading: loadingAnalysisData, 
+            error: errorAnalysisData, 
+            data: analysisData}] = useLazyQuery(GET_ANALYSIS_DATA);
 
     const bucketAxisTimeFormat = (date: any) => {
         const startDateTime = DateTime.fromMillis(date);
@@ -165,22 +175,42 @@ export default function LiveAnalysis({width, height}: any) {
     }, [aggregationGranularity, endDateTime, startDateTime, fileVersions, networkActivities]);
 
     useEffect(() => {
-        setPortLinks(getPortLinkDataArray(ports, endpoints, processes));
-    }, [endpoints, ports, processes]);
+        setDisplayedPortLinks(getPortLinkDataArray(displayedPorts, endpoints, processes));
+    }, [endpoints, displayedPorts, processes]);
 
     useEffect(() => {
-        setFileVersionLinks(
+        setDisplayedFileVersionLinks(
             Array
-                .from(getLinkDataMap(fileVersions, processes, files, brushedStartDateTime, brushedEndDateTime))
+                .from(getLinkDataMap(fileVersions, 'FileVersion', processes, files, brushedStartDateTime, brushedEndDateTime))
                 .map((d: any) => d[1]));
     }, [brushedEndDateTime, brushedStartDateTime, fileVersions, files, processes]);
 
     useEffect(() => {
-        setNetworkActivityLinks(
+        setDisplayedNetworkActivityLinks(
             Array
-                .from(getLinkDataMap(networkActivities, ports, ports, brushedStartDateTime, brushedEndDateTime))
+                .from(getLinkDataMap(networkActivities, 'NetworkActivity', ports, ports, brushedStartDateTime, brushedEndDateTime))
                 .map((d: any) => d[1]));
     }, [brushedEndDateTime, brushedStartDateTime, ports, networkActivities]);
+
+    useEffect(() => {
+        const displayedNodeIds = [];
+        [...displayedPortLinks, ...displayedFileVersionLinks].forEach((link: any) => {
+            displayedNodeIds.push(link.target.id);
+            displayedNodeIds.push(link.source.id);
+        });
+        setDisplayedProcesses(processes.filter((process: Process) => displayedNodeIds.includes(process.id)));
+        setDisplayedEndpoints(endpoints.filter((endpoint: Endpoint) => displayedNodeIds.includes(endpoint.id)));
+    }, [displayedFileVersionLinks, displayedPortLinks, endpoints, processes])
+
+    useEffect(() => {
+        const displayedNodeIds = [];
+        [...displayedFileVersionLinks, ...displayedNetworkActivityLinks].forEach((link: any) => {
+            displayedNodeIds.push(link.target.id);
+            displayedNodeIds.push(link.source.id);
+        });
+        setDisplayedFiles(files.filter((file: File) => displayedNodeIds.includes(file.id)));
+        setDisplayedPorts(ports.filter((port: Port) => displayedNodeIds.includes(port.id)));
+    }, [displayedFileVersionLinks, displayedNetworkActivityLinks, files, ports]);
 
     const handleBrushChange = (domain: Bounds | null) => {
         if (!domain) return;
@@ -324,19 +354,18 @@ export default function LiveAnalysis({width, height}: any) {
             </Grid>       
             <Grid item xs={8}>
                 <Paper className={clsx(classes.card, classes.rowGraph)}>
-                    Graph
                     <ParentSize>
                         {({width: visWidth, height: visHeight}) => (
                             <NetworkChart
                                 width={visWidth}
                                 height={visHeight}
-                                processesData={processes}
-                                portsData={ports}
-                                filesData={files}
-                                endpointsData={endpoints}
-                                portLinksData={portLinks}
-                                fileVersionLinksData={fileVersionLinks}
-                                networkActivityLinksData={networkActivityLinks}
+                                processesData={displayedProcesses}
+                                portsData={displayedPorts}
+                                filesData={displayedFiles}
+                                endpointsData={displayedEndpoints}
+                                portLinksData={displayedPortLinks}
+                                fileVersionLinksData={displayedFileVersionLinks}
+                                networkActivityLinksData={displayedNetworkActivityLinks}
                             />
                         )}
                     </ParentSize>
@@ -366,6 +395,7 @@ function getPortLinkDataArray(ports: Port[], endpoints: Endpoint[], processes: P
     const tempPortLinks = [];
     ports.forEach((portNode: Port) => {
         const portLink =  {
+            __typename: 'PortLink',
             id: `port_${portNode.portNumber}_of_${portNode.hostName}`,
             source: portNode,
             target: null
@@ -382,8 +412,8 @@ function getPortLinkDataArray(ports: Port[], endpoints: Endpoint[], processes: P
     return tempPortLinks;
 }
 
-function getLinkDataMap(activities: any[], sourceNodes: any[], targetNodes: any[], startTime: DateTime, endTime: DateTime): Map<string, object> {
-    const returnMap = new Map();
+function getLinkDataMap(activities: any[], linkType: string, sourceNodes: any[], targetNodes: any[], startTime: DateTime, endTime: DateTime): Map<string, object> {
+    const returnMap = new Map(); 
     let overallBytes = 0;
     activities
         .filter((d: any) => d.timestamp > startTime.toMillis() && d.timestamp < endTime.toMillis())
@@ -393,7 +423,8 @@ function getLinkDataMap(activities: any[], sourceNodes: any[], targetNodes: any[
             let link = returnMap.get(linkId);
             if(!link) {
                 returnMap.set(linkId, {
-                    id: linkId, 
+                    id: linkId,
+                    __typename: linkType, 
                     target: targetNodes.filter((node: any) => node.id === d.target)[0],
                     source: sourceNodes.filter((node: any) => node.id === d.source)[0],
                     overallLinkBytes: d.length ? d.length : d.fileSize,
