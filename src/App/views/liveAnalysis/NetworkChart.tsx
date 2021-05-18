@@ -2,8 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { withTooltip, Tooltip} from '@visx/tooltip';
 import { WithTooltipProvidedProps } from '@visx/tooltip/lib/enhancers/withTooltip';
 import * as d3 from 'd3';
-import { scaleLinear, scaleOrdinal } from '@visx/scale';
-import { Legend, LegendItem, LegendLabel, LegendOrdinal } from '@visx/legend';
+import { format } from 'd3-format';
+import { scaleLinear, scaleOrdinal, scaleQuantile } from '@visx/scale';
+import { Legend, LegendItem, LegendLabel, LegendOrdinal, LegendQuantile } from '@visx/legend';
 import forceInABox from './forceInABox';
 import { Endpoint } from '../../models/Endpoint';
 import React from 'react';
@@ -45,10 +46,7 @@ const useStyles = makeStyles((theme: Theme) =>
     }),
 );
 
-const connectionIntensityColorScale = scaleLinear({
-    domain: [0, 1],
-	range: ['#425fbd', '#d93b26'],
-});
+const twoDecimalFormat = format('.2f');
 
 const settings = {
     nodeRadius: 17,
@@ -139,6 +137,22 @@ export default withTooltip<NetworkChartProps, any>(
         scaleOrdinal({
             range: [...d3.schemeTableau10],
             domain: hosts}), [hosts]);
+
+    const fileVersionColorScale = useMemo(() => {
+        const proportions = fileVersionLinksData.map((link: any) => link.byteProportion)
+        return scaleQuantile({
+            domain: [Math.min(...proportions), Math.max(...proportions)],
+            range: ['#9096f8', '#78f6ef', '#6ce18b', '#f19938', '#eb4d70']
+        });
+    }, [fileVersionLinksData])
+
+    const networkActivityColorScale = useMemo(() => {
+        const proportions = networkActivityLinksData.map((link: any) => link.byteProportion)
+        return scaleQuantile({
+            domain: [Math.min(...proportions), Math.max(...proportions)],
+            range: ['#9096f8', '#78f6ef', '#6ce18b', '#f19938', '#eb4d70']
+        });
+    }, [networkActivityLinksData]);
 
     const groupIds: string[] = useMemo(() => {
         const groupIdsMap = new Map();
@@ -322,7 +336,14 @@ export default withTooltip<NetworkChartProps, any>(
                 .attr('xoverflow','visible')
                 .append('path')
                 .attr('d', 'M 0 -3 L 6 0 L 0 3')
-                .attr('fill', (d: any) => getLinkColor(d))
+                .attr('fill', (d: any) => {
+                    switch (d.__typename) {
+                        case 'FileVersion':
+                            return fileVersionColorScale(d.byteProportion);
+                        default:
+                            return networkActivityColorScale(d.byteProportion);
+                    }
+                })
                 .style('stroke','none');
         
             const groups = svg.append('g').attr('class', 'groups');
@@ -338,8 +359,10 @@ export default withTooltip<NetworkChartProps, any>(
                     switch (d.__typename) {
                         case 'PortLink':
                             return '#999';
+                        case 'FileVersion':
+                            return fileVersionColorScale(d.byteProportion);
                         default:
-                            return getLinkColor(d);
+                            return networkActivityColorScale(d.byteProportion);
                     }
                 })
                 .attr('fill', 'none')
@@ -347,7 +370,9 @@ export default withTooltip<NetworkChartProps, any>(
                 .attr('stroke-dasharray', (d: any) => {
                     switch (d.__typename) {
                         case 'PortLink':
-                            return 2;
+                            return '2 1';
+                        case 'NetworkActivity':
+                            return '5 3';
                         default:
                             return 0;
                     }
@@ -539,7 +564,7 @@ export default withTooltip<NetworkChartProps, any>(
                 }
             }
         },
-        [displayedNodes, portLinksData, fileVersionLinksData, networkActivityLinksData, displayedLinks, width, height, linkMouseOver, mouseOut, nodeMouseOver, groupIds, hostColorScale],
+        [displayedNodes, portLinksData, fileVersionLinksData, networkActivityLinksData, displayedLinks, width, height, linkMouseOver, mouseOut, nodeMouseOver, groupIds, fileVersionColorScale, networkActivityColorScale, hostColorScale],
     );
 
     useEffect(() => {
@@ -643,6 +668,31 @@ export default withTooltip<NetworkChartProps, any>(
                 )}
                 </Legend>
             </div>
+            <div className={clsx(classes.legend)} style={{left: '22%'}}>
+                <div className={clsx(classes.legendTitle)}>FileVersion Links</div>
+                <LegendQuantile scale={fileVersionColorScale} labelFormat={(d, i) => twoDecimalFormat(d)}>
+                    {labels =>
+                        labels.map((label, i) => (
+                            <LegendItem
+                                key={`legend-${i}`}>
+                                <svg width={settings.legendNodeRadius * 2 + 1.5} height={settings.legendNodeRadius * 2 + 1.5} style={{ margin: '2px 0' }}>
+                            <circle
+                                fill={label.value}
+                                stroke={label.value}
+                                strokeWidth='1.5'
+                                r={settings.legendNodeRadius}
+                                cx={settings.legendNodeRadius + 0.75}
+                                cy={settings.legendNodeRadius + 0.75}
+                            />
+                            </svg>
+                            <LegendLabel align="left" margin="0 4px">
+                            {label.text}
+                            </LegendLabel>
+                        </LegendItem>
+                        ))
+                    }
+                </LegendQuantile>
+            </div>
             {tooltipOpen && tooltipData && tooltipData.type === 'node' && tooltipLeft != null && tooltipTop != null && (
                 <Tooltip left={tooltipLeft + 10} top={tooltipTop + 10}>
                     <div>
@@ -721,8 +771,4 @@ function groupDragging (simulation: any, nodes: any) {
         .on('start', dragStarted)
         .on('drag', drag)
         .on('end', dragStopped);
-}
-
-function getLinkColor(link: any) {
-    return connectionIntensityColorScale(link.byteProportion);
 }
