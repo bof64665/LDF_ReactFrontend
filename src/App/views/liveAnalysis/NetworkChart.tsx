@@ -175,21 +175,20 @@ export default withTooltip<NetworkChartProps, any>(
 
         if(link.__typename === 'PortLink') return;
 
-        const data: any = {};
+        const data: any = {
+            activityCount: link.activities.length,
+            proportion: `${(link.byteProportion * 100).toFixed(2)}%`
+        };
         switch (link.__typename) {
             case 'NetworkActivity':
                 data.title = 'Network Activity';
                 data.source = `${link.source.hostName}:${link.source.portNumber}`;
                 data.target = `${link.target.hostName}:${link.target.portNumber}`;
-                data.activityCount = link.activities.length;
-                data.proportion = `${link.byteProportion * 100}%`;
                 break;
             case 'FileVersion':
-                data.title = 'Network Activity';
+                data.title = 'File Version';
                 data.source = link.source.name;
                 data.target = `${link.target.path}/${link.target.name}`;
-                data.activityCount = link.activities.length;
-                data.proportion = `${link.byteProportion * 100}%`;
                 break;
             default:
                 break;
