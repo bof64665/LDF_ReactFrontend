@@ -428,15 +428,16 @@ function getLinkDataMap(activities: any[], linkType: string, sourceNodes: any[],
                     target: targetNodes.filter((node: any) => node.id === d.target)[0],
                     source: sourceNodes.filter((node: any) => node.id === d.source)[0],
                     overallLinkBytes: d.length ? d.length : d.fileSize,
-                    byteProportion: d.length ?  d.length / overallBytes : d.fileSize / overallBytes,
                     activities: [d]
                 });
             } else {
-                link.overallLinkBytes += d.length ? d.length : d.fileSize;
-                link.byteProportion = link.overallLinkBytes / overallBytes;
                 link.activities.push(d);
+                link.overallLinkBytes += d.length ? d.length : d.fileSize;
                 returnMap.set(linkId, link);
             }
         });
+    returnMap.forEach((value) => {
+        value.byteProportion = value.overallLinkBytes / overallBytes;
+    });
     return returnMap;
 }
