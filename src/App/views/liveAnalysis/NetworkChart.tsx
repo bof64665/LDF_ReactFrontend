@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { withTooltip} from '@visx/tooltip';
+import { withTooltip, Tooltip} from '@visx/tooltip';
 import { WithTooltipProvidedProps } from '@visx/tooltip/lib/enhancers/withTooltip';
 import * as d3 from 'd3';
 import { scaleLinear, scaleOrdinal } from '@visx/scale';
@@ -9,6 +9,7 @@ import { Endpoint } from '../../models/Endpoint';
 import React from 'react';
 import { createStyles, makeStyles, Theme } from '@material-ui/core';
 import clsx from 'clsx';
+import Typography from '@material-ui/core/Typography';
 
 declare global {
     interface Window {
@@ -111,7 +112,11 @@ export default withTooltip<NetworkChartProps, any>(
         fileVersionLinksData,
         networkActivityLinksData,
         showTooltip,
-        hideTooltip}: NetworkChartProps & WithTooltipProvidedProps<any>) => {
+        hideTooltip,
+        tooltipOpen,
+        tooltipLeft,
+        tooltipTop,
+        tooltipData}: NetworkChartProps & WithTooltipProvidedProps<any>) => {
 
     const classes = useStyles();
 
@@ -150,35 +155,7 @@ export default withTooltip<NetworkChartProps, any>(
             .map(element => element[1].hostName);
     }, [displayedNodes]);
 
-
-
-    let groupingForce: any = forceInABox();
-    
-    const forceSimulation = d3
-        .forceSimulation()
-        .nodes(displayedNodes)
-        .force("group", groupingForce
-            .template('force') // Either treemap or force
-            .groupBy("hostName") // Nodes' attribute to group
-            .strength(0.2) // Strength to foci
-            .links([...portLinksData, ...fileVersionLinksData, ...networkActivityLinksData]) // The graph links. Must be called after setting the grouping attribute (Force template only)
-            .enableGrouping(true)
-            .linkStrengthInterCluster(0.01) // linkStrength between nodes of different clusters
-            .linkStrengthIntraCluster(0.11) // linkStrength between nodes of the same cluster
-            .forceLinkDistance(5000) // linkDistance between meta-nodes on the template (Force template only)
-            .forceLinkStrength(0.035) // linkStrength between meta-nodes of the template (Force template only)
-            .forceCharge(-527) // Charge between the meta-nodes (Force template only)
-            .forceNodeSize(25) // Used to compute the template force nodes size (Force template only)
-        )
-        .force("charge", d3.forceManyBody().strength(-4))
-        .force("collide", d3.forceCollide(settings.nodeRadius * 2))
-        .force("link", 
-            d3.forceLink(displayedLinks)
-                .distance(5)
-                .strength(groupingForce.getLinkStrength));
-
-    const linkMouseOver = useCallback(
-        (event: any, link: any) => {
+    const linkMouseOver = useCallback((event: any, link: any) => {
         d3.selectAll('.node')
             .transition().duration(500)
             .attr('opacity', (d: any) => d.id === link.target.id || d.id === link.source.id ? 1 : .2)
@@ -195,33 +172,90 @@ export default withTooltip<NetworkChartProps, any>(
         d3.selectAll('.marker')
             .transition().duration(500)
             .attr('opacity', (d: any) => link.id === d.id ? 1 : .2);
-    }, [hostColorScale]);
 
-    const nodeMouseOver = useCallback(
-        (event: any, node: any) => {
-            const neighborNodesIDs = displayedLinks
-                .filter((link: any) => link.source.id === node.id || link.target.id === node.id)
-                .map((link: any) => link.source.id === node.id ? link.target.id : link.source.id);
+        if(link.__typename === 'PortLink') return;
 
-            d3.selectAll('.node')
-                .transition().duration(500)
-                .attr('opacity', (d: any) => node.id === d.id || neighborNodesIDs.indexOf (d.id) > -1 ? 1 : .2)
-                .attr('stroke', (d: any) => node.id === d.id || neighborNodesIDs.indexOf (d.id) > -1 ? hostColorScale(d.hostName) : '#fff');
+        const data: any = {};
+        switch (link.__typename) {
+            case 'NetworkActivity':
+                data.title = 'Network Activity';
+                data.source = `${link.source.hostName}:${link.source.portNumber}`;
+                data.target = `${link.target.hostName}:${link.target.portNumber}`;
+                data.activityCount = link.activities.length;
+                data.proportion = `${link.byteProportion * 100}%`;
+                break;
+            case 'FileVersion':
+                data.title = 'Network Activity';
+                data.source = link.source.name;
+                data.target = `${link.target.path}/${link.target.name}`;
+                data.activityCount = link.activities.length;
+                data.proportion = `${link.byteProportion * 100}%`;
+                break;
+            default:
+                break;
+        }
         
-            d3.selectAll('.link')
-                .transition().duration(500)
-                .attr('opacity', (d: any) => (node.id === d.source.id || node.id === d.target.id) ? 1 : .2);
+        showTooltip({
+            tooltipData: {
+                type: 'link',
+                data: data
+            },
+            tooltipLeft: event.x - 90,
+			tooltipTop: event.y - 470,
+        })
+    }, [hostColorScale, showTooltip]);
 
-            d3.selectAll('.node-text')
-                .transition().duration(500)
-                .attr('opacity', (d: any) => node.id === d.id || neighborNodesIDs.indexOf (d.id) > -1 ? 1 : .2);
+    const nodeMouseOver = useCallback((event: any, node: any) => {
+        const neighborNodesIDs = displayedLinks
+            .filter((link: any) => link.source.id === node.id || link.target.id === node.id)
+            .map((link: any) => link.source.id === node.id ? link.target.id : link.source.id);
 
-            d3.selectAll('.marker')
-                .transition().duration(500)
-                .attr('opacity', (d: any) => (node.id === d.source.id || node.id === d.target.id) ? 1 : .2);
-        }, [displayedLinks, hostColorScale]);
+        d3.selectAll('.node')
+            .transition().duration(500)
+            .attr('opacity', (d: any) => node.id === d.id || neighborNodesIDs.indexOf (d.id) > -1 ? 1 : .2)
+            .attr('stroke', (d: any) => node.id === d.id || neighborNodesIDs.indexOf (d.id) > -1 ? hostColorScale(d.hostName) : '#fff');
     
-    const mouseOut = () => {
+        d3.selectAll('.link')
+            .transition().duration(500)
+            .attr('opacity', (d: any) => (node.id === d.source.id || node.id === d.target.id) ? 1 : .2);
+
+        d3.selectAll('.node-text')
+            .transition().duration(500)
+            .attr('opacity', (d: any) => node.id === d.id || neighborNodesIDs.indexOf (d.id) > -1 ? 1 : .2);
+
+        d3.selectAll('.marker')
+            .transition().duration(500)
+            .attr('opacity', (d: any) => (node.id === d.source.id || node.id === d.target.id) ? 1 : .2);
+        
+        let tooltipString = node.id;
+        switch (node.__typename) {
+            case 'File':
+                tooltipString = `${node.path}/${node.name}`;
+                break;
+            case 'EndPoint':
+                tooltipString = `${node.hostName} (${node.hostIp})`;
+                break;
+            case 'Port':
+                tooltipString = `${node.hostName}:${node.portNumber}`;
+                break;
+            case 'Process':
+                tooltipString =  node.name;
+                break
+            default:
+                tooltipString = node.id;
+        }
+
+        showTooltip({
+			tooltipData: {
+                type: 'node',
+				data: tooltipString
+			},
+			tooltipLeft: node.x + 800,
+			tooltipTop: node.y + 360,
+		})
+    }, [displayedLinks, hostColorScale, showTooltip]);
+    
+    const mouseOut = useCallback(() => {
         d3.selectAll('.node')
             .transition().duration(250)
             .attr('opacity', 1)
@@ -238,14 +272,40 @@ export default withTooltip<NetworkChartProps, any>(
         d3.selectAll('.marker')
             .transition().duration(250)
             .attr('opacity', 1);
-    };
+
+        hideTooltip();
+    }, [hideTooltip]);
     
-    const runForceGraph = useCallback(
-        (container: any) => {
-            const svg = d3.selectAll('.network-graph')
-                .attr('width', width)
-                .attr('height', height > 15 ? height-15 : height)
-                .attr('viewBox', `${-width / 2} ${-height / 2} ${width} ${height > 15 ? height-15: height}`);
+    const runForceGraph = useCallback(() => {
+
+        let groupingForce: any = forceInABox();
+    
+        const forceSimulation = d3
+            .forceSimulation()
+            .nodes(displayedNodes)
+            .force("group", groupingForce
+                .template('force') // Either treemap or force
+                .groupBy("hostName") // Nodes' attribute to group
+                .strength(0.2) // Strength to foci
+                .links([...portLinksData, ...fileVersionLinksData, ...networkActivityLinksData]) // The graph links. Must be called after setting the grouping attribute (Force template only)
+                .enableGrouping(true)
+                .linkStrengthInterCluster(0.01) // linkStrength between nodes of different clusters
+                .linkStrengthIntraCluster(0.11) // linkStrength between nodes of the same cluster
+                .forceLinkDistance(5000) // linkDistance between meta-nodes on the template (Force template only)
+                .forceLinkStrength(0.035) // linkStrength between meta-nodes of the template (Force template only)
+                .forceCharge(-527) // Charge between the meta-nodes (Force template only)
+                .forceNodeSize(25) // Used to compute the template force nodes size (Force template only)
+            )
+            .force("charge", d3.forceManyBody().strength(-4))
+            .force("collide", d3.forceCollide(settings.nodeRadius * 2))
+            .force("link", 
+                d3.forceLink(displayedLinks)
+                    .distance(5)
+                    .strength(groupingForce.getLinkStrength));
+        const svg = d3.selectAll('.network-graph')
+            .attr('width', width)
+            .attr('height', height > 15 ? height-15 : height)
+            .attr('viewBox', `${-width / 2} ${-height / 2} ${width} ${height > 15 ? height-15: height}`);
 
             svg.append('defs')
                 .attr('class', 'markers')
@@ -321,22 +381,6 @@ export default withTooltip<NetworkChartProps, any>(
                 .on('mouseover', nodeMouseOver)
                 .on('mouseout', mouseOut)
                 .call(nodeDragging(forceSimulation, settings));
-
-            nodes.append('title')
-                .text((d: any) => {
-                    switch (d.__typename) {
-                        case 'File':
-                            return `${d.path}/${d.name}`;
-                        case 'EndPoint':
-                            return `${d.hostIp} (${d.hostName})`;
-                        case 'Port':
-                            return `:${d.portNumber}`
-                        case 'Process':
-                            return d.name
-                        default:
-                            return d.id;
-                    }
-                })
         
             const nodeLabels = svg.append('g')
                 .attr('class', 'nodeText')
@@ -445,6 +489,7 @@ export default withTooltip<NetworkChartProps, any>(
                 });
                 
                 linkMarkerPaths.attr('d', (d: any) => {
+                    if(!d.source.x) return '';
                     switch (d.__typename) {
                         case 'NetworkActivity':
                             const dx = d.target.x - d.source.x;
@@ -495,7 +540,7 @@ export default withTooltip<NetworkChartProps, any>(
                 }
             }
         },
-        [width, height, fileVersionLinksData, networkActivityLinksData, displayedLinks, linkMouseOver, displayedNodes, nodeMouseOver, forceSimulation, groupIds, hostColorScale],
+        [displayedNodes, portLinksData, fileVersionLinksData, networkActivityLinksData, displayedLinks, width, height, linkMouseOver, mouseOut, nodeMouseOver, groupIds, hostColorScale],
     );
 
     useEffect(() => {
@@ -517,9 +562,7 @@ export default withTooltip<NetworkChartProps, any>(
         let destroyFn;
  
         if (svgRef.current) {
-            const { destroy } = runForceGraph(
-                svgRef.current,
-                );
+            const { destroy } = runForceGraph();
             destroyFn = destroy;
         }
         return destroyFn;
@@ -551,8 +594,8 @@ export default withTooltip<NetworkChartProps, any>(
                                             fill={ hiddenHosts.includes(label.datum) ? '#fff' : label.value }
                                             stroke={label.value}
                                             strokeWidth='1.5'
-                                            width='15' 
-                                            height='15' />
+                                            width='13' 
+                                            height='13' x='1' y='1' />
                                     </svg>
                                     <LegendLabel align='left' margin='0 0 0 4px'>
                                         {label.text}
@@ -568,7 +611,7 @@ export default withTooltip<NetworkChartProps, any>(
                 <div className={clsx(classes.legendTitle)}>Nodes</div>
                 <Legend scale={shapeScale}>
                 {labels => (
-                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', cursor: 'pointer' }}>
                     {labels.map((label, i) => {
                         const color = '#000';
                         const shape = shapeScale(label.datum);
@@ -601,6 +644,26 @@ export default withTooltip<NetworkChartProps, any>(
                 )}
                 </Legend>
             </div>
+            {tooltipOpen && tooltipData && tooltipData.type === 'node' && tooltipLeft != null && tooltipTop != null && (
+                <Tooltip left={tooltipLeft + 10} top={tooltipTop + 10}>
+                    <div>
+                        <Typography variant="body2" color="textSecondary">{tooltipData.data}</Typography>
+                    </div>
+                </Tooltip>
+            )}
+            {tooltipOpen && tooltipData && tooltipData.type === 'link' && tooltipLeft != null && tooltipTop != null && (
+                <Tooltip left={tooltipLeft + 10} top={tooltipTop + 10}>
+                    <div>
+                        <Typography variant="body2" color="textSecondary">{tooltipData.data.title}</Typography>
+                    </div>
+                    <div>
+                        From <strong>{tooltipData.data.source}</strong> to <strong>{tooltipData.data.target}</strong>
+                        <br />
+                        {tooltipData.data.activityCount} activities ({tooltipData.data.proportion})
+                    </div>
+
+                </Tooltip>
+            )}
         </React.Fragment>);
 });
 
