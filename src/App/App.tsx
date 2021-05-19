@@ -198,6 +198,8 @@ function App() {
     const [hiddenNodeTypes, setHiddenNodeTypes] = useState([]);
     const [hiddenLinkTypes, setHiddenLinkTypes] = useState([]);
     const [hiddenHosts, setHiddenHosts] = useState([]);
+    const [hiddenFileVersionLinks, setHiddenFileVersionLinks] = useState([]);
+    const [hiddenNetworkActivityLinks, setHiddenNetworkActivityLinks] = useState([]);
 
     /* State variables for brushing behavior */
     const [brushedStartDateTime, setBrushedStartDateTime] = useState<DateTime>(startDateTime);
@@ -214,17 +216,20 @@ function App() {
     const [displayedNetworkActivityLinks, setDisplayedNetworkActivityLinks] = useState<any[]>([]);
     const [dataBuckets, setDataBuckets] = useState<Map<number, any>>(new Map());
 
+    /* Custom time format for the event timeline time axiis */
     const bucketAxisTimeFormat = (date: any) => {
         const startDateTime = DateTime.fromMillis(date);
         const endDateTime = startDateTime.plus({milliseconds: aggregationGranularity});
         return timeFormat(`${startDateTime.toFormat('dd.LL, HH:mm:ss')} - ${endDateTime.toFormat('dd.LL, HH:mm:ss')}`)
     }
 
+    /* GraphQL query to get the datetime range for which data is actually available */
     const { 
         loading: loadingAvailableDateRange,
         error: errorAvailableDateRange,
         data: availableDateRange } =  useQuery(GET_AVAILABLE_DATA_RANGE);
 
+    /* Lazy GraphQL query to get the actual data. Lazy means, this query is not performed before its actually triggered. */
     const [
         getAnalysisData, 
         {
@@ -232,6 +237,7 @@ function App() {
             error: errorAnalysisData, 
             data: analysisData}] = useLazyQuery(GET_ANALYSIS_DATA);
 
+    /* Callback if search button is clicked. Triggers lazy GraphQL query to get the data. */
     const handleSearch = useCallback(
         () => {
             getAnalysisData({variables: {start: startDateTime.toMillis(), end: endDateTime.toMillis()}});
@@ -239,6 +245,7 @@ function App() {
         [getAnalysisData, startDateTime, endDateTime],
     );
 
+    /* A list of all hosts (e.g. IP adresses) that are included in the data set. */
     const hosts = useMemo(() => {
         const types = ['localhost'];
         endpoints.forEach((endpoint: Endpoint) => {
@@ -247,11 +254,13 @@ function App() {
         return types;
     }, [endpoints]);
 
+    /* Ordinal color scale with a specific color for each host in the data set. */
     const hostColorScale = useMemo(() => 
         scaleOrdinal({
             range: [...schemeTableau10],
             domain: hosts}), [hosts]);
 
+    /* Quantile color scale for file version links for a specific color for each quantile respective to overall byte proportion. */
     const fileVersionColorScale = useMemo(() => {
         const proportions = displayedFileVersionLinks.map((link: any) => link.byteProportion)
         return scaleQuantile({
@@ -260,6 +269,7 @@ function App() {
         });
     }, [displayedFileVersionLinks]);
 
+    /* Quantile color scale for network activity links for a specific color for each quantile respective to overall byte proportion. */
     const networkActivityColorScale = useMemo(() => {
         const proportions = displayedNetworkActivityLinks.map((link: any) => link.byteProportion)
         return scaleQuantile({
@@ -268,19 +278,21 @@ function App() {
         });
     }, [displayedNetworkActivityLinks]);
         
-
+    /* Set minimum and maximum selectable datetime depending on the available date range in the backend. */
     useEffect(() => {
         if(!availableDateRange || loadingAvailableDateRange || errorAvailableDateRange) return;
         setMinDateTime(DateTime.fromMillis(availableDateRange.dataAvailability.startTime));
         setMaxDateTime(DateTime.fromMillis(availableDateRange.dataAvailability.endTime));
     }, [loadingAvailableDateRange, errorAvailableDateRange, availableDateRange]);
 
+    /* Initially set the selected start and end time for data analysis.  */
     useEffect(() => {
         setDateSelectionErr(false);
         setStartDateTime(minDateTime);
         setEndDateTime(maxDateTime);
     }, [minDateTime, maxDateTime]);
 
+    /* when analysis data from the backend is retrieved, deep copy the data into the respective state variables */
     useEffect(() => {
         if(!analysisData || loadingAnalysisData || errorAnalysisData) return;
         setPorts(cloneDeep(analysisData.analysisData.ports));
@@ -291,6 +303,7 @@ function App() {
         setNetworkActivities(cloneDeep(analysisData.analysisData.networkActivities));
     }, [analysisData, loadingAnalysisData, errorAnalysisData]);
 
+    /* Reset the time range that might be brushed when a new selection of a analysis time range is made.  */
     useEffect(() => {
         setBrushedStartDateTime(startDateTime);
         setBrushedEndDateTime(endDateTime);
@@ -692,25 +705,33 @@ function App() {
                                 <Typography variant="caption" color="textSecondary" className={clsx(classes.legendTitle)}>FileVersions</Typography>
                                 <LegendQuantile scale={fileVersionColorScale} labelFormat={(d, i) => twoDecimalFormat(d)}>
                                     {labels =>
-                                        labels.map((label, i) => (
+                                        labels.map((label, i) => {
+                                            const display = hiddenFileVersionLinks.includes(label.value);
+                                            return (
                                             <LegendItem
                                                 key={`legend-${i}`}
-                                                onClick={() => alert(JSON.stringify(label))}>
+                                                margin='0 0 5px'
+                                                onClick={() => {
+                                                    setHiddenFileVersionLinks(prevLinks => prevLinks.includes(label.value) ? prevLinks.filter(link => link !== label.value) : [...prevLinks, label.value])
+                                                }}>
                                                 <svg width={legendSettings.nodeRadius * 2 + 1.5} height={legendSettings.nodeRadius * 2 + 1.5} style={{ margin: '2px 0' }}>
                                                     <circle
-                                                        fill={label.value}
-                                                        stroke={label.value}
+                                                        fill={ display ? theme.palette.text.disabled : label.value }
+                                                        stroke={ display ? theme.palette.text.disabled : label.value }
                                                         strokeWidth='1.5'
                                                         r={legendSettings.nodeRadius}
                                                         cx={legendSettings.nodeRadius + 0.75}
                                                         cy={legendSettings.nodeRadius + 0.75}
                                                     />
                                                 </svg>
-                                                <LegendLabel align="left" margin="0 4px">
-                                                    {label.text}
-                                                </LegendLabel>
+                                                <LegendLabel style={{
+                                                        margin: '0 0 0 4px', 
+                                                        color: display ? theme.palette.text.disabled : theme.palette.text.primary}}
+                                                    >
+                                                        {label.text}
+                                                    </LegendLabel>
                                             </LegendItem>
-                                        ))
+                                        )})
                                     }
                                 </LegendQuantile>
                             </div>
@@ -718,6 +739,37 @@ function App() {
                         <Grid item xs={5}>
                             <div className={clsx(classes.legend)}>
                                 <Typography variant="caption" color="textSecondary" className={clsx(classes.legendTitle)}>NetworkActivity</Typography>
+                                <LegendQuantile scale={networkActivityColorScale} labelFormat={(d, i) => twoDecimalFormat(d)}>
+                                    {labels =>
+                                        labels.map((label, i) => {
+                                            const display = hiddenNetworkActivityLinks.includes(label.value);
+                                            return (
+                                            <LegendItem
+                                                key={`legend-${i}`}
+                                                margin='0 0 5px'
+                                                onClick={() => {
+                                                    setHiddenNetworkActivityLinks(prevLinks => prevLinks.includes(label.value) ? prevLinks.filter(link => link !== label.value) : [...prevLinks, label.value])
+                                                }}>
+                                                <svg width={legendSettings.nodeRadius * 2 + 1.5} height={legendSettings.nodeRadius * 2 + 1.5} style={{ margin: '2px 0' }}>
+                                                    <circle
+                                                        fill={ display ? theme.palette.text.disabled : label.value }
+                                                        stroke={ display ? theme.palette.text.disabled : label.value }
+                                                        strokeWidth='1.5'
+                                                        r={legendSettings.nodeRadius}
+                                                        cx={legendSettings.nodeRadius + 0.75}
+                                                        cy={legendSettings.nodeRadius + 0.75}
+                                                    />
+                                                </svg>
+                                                <LegendLabel style={{
+                                                        margin: '0 0 0 4px', 
+                                                        color: display ? theme.palette.text.disabled : theme.palette.text.primary}}
+                                                    >
+                                                        {label.text}
+                                                    </LegendLabel>
+                                            </LegendItem>
+                                        )})
+                                    }
+                                </LegendQuantile>
                             </div>
                         </Grid>
                         <Grid item xs={1} />
@@ -769,8 +821,12 @@ function App() {
                                 hiddenNodeTypes={hiddenNodeTypes}
                                 hiddenLinkTypes={hiddenLinkTypes}
                                 hiddenHosts={hiddenHosts}
+                                hiddenFileVersionLinks={hiddenFileVersionLinks}
+                                hiddenNetworkActivityLinks={hiddenNetworkActivityLinks}
                                 groupingEnabled={groupingEnabled}
                                 hostColorScale={hostColorScale}
+                                fileVersionColorScale={fileVersionColorScale}
+                                networkActivityColorScale={networkActivityColorScale}
                             />
                         )}
                     </ParentSize>
@@ -823,16 +879,17 @@ function getLinkDataMap(activities: any[], linkType: string, sourceNodes: any[],
                     target: targetNodes.filter((node: any) => node.id === d.target)[0],
                     source: sourceNodes.filter((node: any) => node.id === d.source)[0],
                     overallLinkBytes: d.length ? d.length : d.fileSize,
-                    byteProportion: d.length ?  d.length / overallBytes : d.fileSize / overallBytes,
                     activities: [d]
                 });
             } else {
-                link.overallLinkBytes += d.length ? d.length : d.fileSize;
-                link.byteProportion = link.overallLinkBytes / overallBytes;
                 link.activities.push(d);
+                link.overallLinkBytes += d.length ? d.length : d.fileSize;
                 returnMap.set(linkId, link);
             }
         });
+    returnMap.forEach((value) => {
+        value.byteProportion = value.overallLinkBytes / overallBytes;
+    });
     return returnMap;
 }
 

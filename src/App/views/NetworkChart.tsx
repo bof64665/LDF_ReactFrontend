@@ -2,13 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { withTooltip, Tooltip} from '@visx/tooltip';
 import { WithTooltipProvidedProps } from '@visx/tooltip/lib/enhancers/withTooltip';
 import * as d3 from 'd3';
-import { format } from 'd3-format';
-import { scaleQuantile } from '@visx/scale';
-import { LegendItem, LegendLabel, LegendQuantile } from '@visx/legend';
 import forceInABox from './forceInABox';
 import React from 'react';
-import { createStyles, makeStyles, Theme } from '@material-ui/core';
-import clsx from 'clsx';
 import Typography from '@material-ui/core/Typography';
 import { forceX, forceY } from 'd3';
 
@@ -18,39 +13,8 @@ declare global {
     }
 }
 
-//custom styles
-const useStyles = makeStyles((theme: Theme) =>
-    createStyles({
-        legend: {
-            position: 'absolute',
-            top: 5,
-            width: '10%',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'center',
-            fontSize: '10px',
-            lineHeight: '0.9em',
-            color: '#000',
-            fontFamily: 'arial',
-            padding: '10px 10px',
-            float: 'left',
-            border: '1px solid rgba(0, 0, 0, 0.3)',
-            borderRadius: '5px',
-            margin: '5px 5px'
-        },
-        legendTitle: {
-            fontSize: '11px',
-            marginBottom: '10px',
-            fontWeight: 100,
-        }
-    }),
-);
-
-const twoDecimalFormat = format('.2f');
-
 const settings = {
     nodeRadius: 17,
-    legendNodeRadius: 6.5,
     nodeStrokeWidth: 1.5,
     hoverFactor: 0.25,
 };
@@ -69,8 +33,12 @@ type NetworkChartProps = {
     hiddenNodeTypes: string[];
     hiddenLinkTypes: string[];
     hiddenHosts: string[];
+    hiddenFileVersionLinks: string[];
+    hiddenNetworkActivityLinks: string[];
     groupingEnabled: boolean;
     hostColorScale: any;
+    fileVersionColorScale: any;
+    networkActivityColorScale: any;
 }
 
 export default withTooltip<NetworkChartProps, any>(
@@ -87,8 +55,12 @@ export default withTooltip<NetworkChartProps, any>(
         hiddenNodeTypes,
         hiddenLinkTypes,
         hiddenHosts,
+        hiddenFileVersionLinks,
+        hiddenNetworkActivityLinks,
         groupingEnabled,
         hostColorScale,
+        fileVersionColorScale,
+        networkActivityColorScale,
         showTooltip,
         hideTooltip,
         tooltipOpen,
@@ -96,28 +68,10 @@ export default withTooltip<NetworkChartProps, any>(
         tooltipTop,
         tooltipData}: NetworkChartProps & WithTooltipProvidedProps<any>) => {
 
-    const classes = useStyles();
-
     const svgRef = useRef();
 
     const [displayedNodes, setDisplayedNodes] = useState([]);
     const [displayedLinks, setDisplayedLinks] = useState([]);
-
-    const fileVersionColorScale = useMemo(() => {
-        const proportions = fileVersionLinksData.map((link: any) => link.byteProportion)
-        return scaleQuantile({
-            domain: [Math.min(...proportions), Math.max(...proportions)],
-            range: ['#9096f8', '#78f6ef', '#6ce18b', '#f19938', '#eb4d70']
-        });
-    }, [fileVersionLinksData]);
-
-    const networkActivityColorScale = useMemo(() => {
-        const proportions = networkActivityLinksData.map((link: any) => link.byteProportion)
-        return scaleQuantile({
-            domain: [Math.min(...proportions), Math.max(...proportions)],
-            range: ['#9096f8', '#78f6ef', '#6ce18b', '#f19938', '#eb4d70']
-        });
-    }, [networkActivityLinksData]);
 
     const groupIds: string[] = useMemo(() => {
         const groupIdsMap = new Map();
@@ -178,8 +132,8 @@ export default withTooltip<NetworkChartProps, any>(
                 type: 'link',
                 data: data
             },
-            tooltipLeft: event.x - 90,
-			tooltipTop: event.y - 470,
+            tooltipLeft: event.x - 330,
+			tooltipTop: event.y - 370,
         })
     }, [hostColorScale, showTooltip]);
 
@@ -228,8 +182,8 @@ export default withTooltip<NetworkChartProps, any>(
                 type: 'node',
 				data: tooltipString
 			},
-			tooltipLeft: node.x + 800,
-			tooltipTop: node.y + 360,
+			tooltipLeft: node.x + 730,
+			tooltipTop: node.y + 430,
 		})
     }, [displayedLinks, hostColorScale, showTooltip]);
     
@@ -261,24 +215,11 @@ export default withTooltip<NetworkChartProps, any>(
         const forceSimulation = d3
             .forceSimulation()
             .nodes(displayedNodes)
-/*             .force("group", groupingForce
-                .template('force') // Either treemap or force
-                .groupBy("hostName") // Nodes' attribute to group
-                .strength(0.2) // Strength to foci
-                .links([...portLinksData, ...fileVersionLinksData, ...networkActivityLinksData]) // The graph links. Must be called after setting the grouping attribute (Force template only)
-                .enableGrouping(true)
-                .linkStrengthInterCluster(0.01) // linkStrength between nodes of different clusters
-                .linkStrengthIntraCluster(0.11) // linkStrength between nodes of the same cluster
-                .forceLinkDistance(5000) // linkDistance between meta-nodes on the template (Force template only)
-                .forceLinkStrength(0.035) // linkStrength between meta-nodes of the template (Force template only)
-                .forceCharge(-527) // Charge between the meta-nodes (Force template only)
-                .forceNodeSize(25) // Used to compute the template force nodes size (Force template only)
-            ) */
             .force("charge", d3.forceManyBody().strength(-4))
             .force("collide", d3.forceCollide(settings.nodeRadius * 2))
             .force("link", 
                 d3.forceLink(displayedLinks)
-                    .distance(5)
+                    .distance(10)
                     .strength(groupingForce.getLinkStrength));
 
         if(groupingEnabled) {
@@ -566,8 +507,13 @@ export default withTooltip<NetworkChartProps, any>(
             [...portLinksData, ...fileVersionLinksData, ...networkActivityLinksData]
                 .filter(link => displayedNodes.includes(link.source) && displayedNodes.includes(link.target))
                 .filter(link => !hiddenLinkTypes.includes(link.__typename))
+                .filter(link => {
+                    if(link.__typename === 'FileVersion') return !hiddenFileVersionLinks.includes(fileVersionColorScale(link.byteProportion));
+                    if(link.__typename === 'NetworkActivity') return !hiddenNetworkActivityLinks.includes(networkActivityColorScale(link.byteProportion));
+                    return true;
+                })
         );
-    }, [displayedNodes, fileVersionLinksData, hiddenLinkTypes, networkActivityLinksData, portLinksData])
+    }, [displayedNodes, fileVersionColorScale, fileVersionLinksData, hiddenFileVersionLinks, hiddenLinkTypes, hiddenNetworkActivityLinks, networkActivityColorScale, networkActivityLinksData, portLinksData])
 
     useEffect(() => {
         let destroyFn;
@@ -586,31 +532,6 @@ export default withTooltip<NetworkChartProps, any>(
                 className='network-graph'
                 width={width}
                 height={height}/>
-            <div className={clsx(classes.legend)} style={{left: '1%'}}>
-                <div className={clsx(classes.legendTitle)}>FileVersion Links</div>
-                <LegendQuantile scale={fileVersionColorScale} labelFormat={(d, i) => twoDecimalFormat(d)}>
-                    {labels =>
-                        labels.map((label, i) => (
-                            <LegendItem
-                                key={`legend-${i}`}>
-                                <svg width={settings.legendNodeRadius * 2 + 1.5} height={settings.legendNodeRadius * 2 + 1.5} style={{ margin: '2px 0' }}>
-                            <circle
-                                fill={label.value}
-                                stroke={label.value}
-                                strokeWidth='1.5'
-                                r={settings.legendNodeRadius}
-                                cx={settings.legendNodeRadius + 0.75}
-                                cy={settings.legendNodeRadius + 0.75}
-                            />
-                            </svg>
-                            <LegendLabel align="left" margin="0 4px">
-                            {label.text}
-                            </LegendLabel>
-                        </LegendItem>
-                        ))
-                    }
-                </LegendQuantile>
-            </div>
             {tooltipOpen && tooltipData && tooltipData.type === 'node' && tooltipLeft != null && tooltipTop != null && (
                 <Tooltip left={tooltipLeft + 10} top={tooltipTop + 10}>
                     <div>
