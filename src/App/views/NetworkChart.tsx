@@ -3,14 +3,14 @@ import { withTooltip, Tooltip} from '@visx/tooltip';
 import { WithTooltipProvidedProps } from '@visx/tooltip/lib/enhancers/withTooltip';
 import * as d3 from 'd3';
 import { format } from 'd3-format';
-import { scaleLinear, scaleOrdinal, scaleQuantile } from '@visx/scale';
-import { Legend, LegendItem, LegendLabel, LegendOrdinal, LegendQuantile } from '@visx/legend';
+import { scaleQuantile } from '@visx/scale';
+import { LegendItem, LegendLabel, LegendQuantile } from '@visx/legend';
 import forceInABox from './forceInABox';
-import { Endpoint } from '../../models/Endpoint';
 import React from 'react';
 import { createStyles, makeStyles, Theme } from '@material-ui/core';
 import clsx from 'clsx';
 import Typography from '@material-ui/core/Typography';
+import { forceX, forceY } from 'd3';
 
 declare global {
     interface Window {
@@ -55,36 +55,6 @@ const settings = {
     hoverFactor: 0.25,
 };
 const triangleHeight = Math.sqrt(3) * settings.nodeRadius;
-const legendTriangleHeight = Math.sqrt(3) * settings.legendNodeRadius;
-
-const shapeScale = scaleOrdinal<string, React.FC | React.ReactNode>({
-    domain: ['Process', 'Port', 'File', 'EndPoint'],
-    range: [
-      <path 
-        d={`
-            M 1 ${settings.legendNodeRadius + 1}
-            a ${settings.legendNodeRadius / 2} ${settings.legendNodeRadius / 2} 0 1 0 ${settings.legendNodeRadius * 2 } 0
-            a ${settings.legendNodeRadius} ${settings.legendNodeRadius} 0 1 0 ${-settings.legendNodeRadius * 2} 0
-        `} fill="#dd59b8" />,
-      <path d={`
-            M 1 ${settings.legendNodeRadius} 
-            L ${settings.legendNodeRadius} 1 
-            L ${settings.legendNodeRadius * 2 - 1} ${settings.legendNodeRadius} 
-            L ${settings.legendNodeRadius} ${settings.legendNodeRadius * 2 - 1 } Z
-      `} fill="#dd59b8" />,
-      <path d={`
-            M 1 ${legendTriangleHeight}
-            L ${settings.legendNodeRadius * 2 - 1} ${legendTriangleHeight}
-            L ${settings.legendNodeRadius} 1 Z
-      `} fill="#dd59b8" />,
-      <path d={`
-            M 1 1
-            L 1 ${settings.legendNodeRadius * 2}
-            L ${settings.legendNodeRadius * 2} ${settings.legendNodeRadius * 2}
-            L ${settings.legendNodeRadius * 2} 0 Z
-      `} fill="#dd59b8" />,
-    ],
-  });
 
 type NetworkChartProps = {
     width: number;
@@ -96,6 +66,11 @@ type NetworkChartProps = {
     portLinksData: any;
     fileVersionLinksData: any;
     networkActivityLinksData: any;
+    hiddenNodeTypes: string[];
+    hiddenLinkTypes: string[];
+    hiddenHosts: string[];
+    groupingEnabled: boolean;
+    hostColorScale: any;
 }
 
 export default withTooltip<NetworkChartProps, any>(
@@ -109,6 +84,11 @@ export default withTooltip<NetworkChartProps, any>(
         portLinksData,
         fileVersionLinksData,
         networkActivityLinksData,
+        hiddenNodeTypes,
+        hiddenLinkTypes,
+        hiddenHosts,
+        groupingEnabled,
+        hostColorScale,
         showTooltip,
         hideTooltip,
         tooltipOpen,
@@ -120,23 +100,8 @@ export default withTooltip<NetworkChartProps, any>(
 
     const svgRef = useRef();
 
-    const [hiddenHosts, setHiddenHosts] = useState([]);
-    const [hiddenNodeTypes, setHiddenNodeTypes] = useState([]);
     const [displayedNodes, setDisplayedNodes] = useState([]);
     const [displayedLinks, setDisplayedLinks] = useState([]);
-
-    const hosts = useMemo(() => {
-        const types = ['localhost'];
-        endpointsData.forEach((endpoint: Endpoint) => {
-            if(types.indexOf(endpoint.hostName) < 0) types.push(endpoint.hostName); 
-        });
-        return types;
-    }, [endpointsData]);
-
-    const hostColorScale = useMemo(() => 
-        scaleOrdinal({
-            range: [...d3.schemeTableau10],
-            domain: hosts}), [hosts]);
 
     const fileVersionColorScale = useMemo(() => {
         const proportions = fileVersionLinksData.map((link: any) => link.byteProportion)
@@ -144,7 +109,7 @@ export default withTooltip<NetworkChartProps, any>(
             domain: [Math.min(...proportions), Math.max(...proportions)],
             range: ['#9096f8', '#78f6ef', '#6ce18b', '#f19938', '#eb4d70']
         });
-    }, [fileVersionLinksData])
+    }, [fileVersionLinksData]);
 
     const networkActivityColorScale = useMemo(() => {
         const proportions = networkActivityLinksData.map((link: any) => link.byteProportion)
@@ -296,7 +261,28 @@ export default withTooltip<NetworkChartProps, any>(
         const forceSimulation = d3
             .forceSimulation()
             .nodes(displayedNodes)
-            .force("group", groupingForce
+/*             .force("group", groupingForce
+                .template('force') // Either treemap or force
+                .groupBy("hostName") // Nodes' attribute to group
+                .strength(0.2) // Strength to foci
+                .links([...portLinksData, ...fileVersionLinksData, ...networkActivityLinksData]) // The graph links. Must be called after setting the grouping attribute (Force template only)
+                .enableGrouping(true)
+                .linkStrengthInterCluster(0.01) // linkStrength between nodes of different clusters
+                .linkStrengthIntraCluster(0.11) // linkStrength between nodes of the same cluster
+                .forceLinkDistance(5000) // linkDistance between meta-nodes on the template (Force template only)
+                .forceLinkStrength(0.035) // linkStrength between meta-nodes of the template (Force template only)
+                .forceCharge(-527) // Charge between the meta-nodes (Force template only)
+                .forceNodeSize(25) // Used to compute the template force nodes size (Force template only)
+            ) */
+            .force("charge", d3.forceManyBody().strength(-4))
+            .force("collide", d3.forceCollide(settings.nodeRadius * 2))
+            .force("link", 
+                d3.forceLink(displayedLinks)
+                    .distance(5)
+                    .strength(groupingForce.getLinkStrength));
+
+        if(groupingEnabled) {
+            forceSimulation.force("group", groupingForce
                 .template('force') // Either treemap or force
                 .groupBy("hostName") // Nodes' attribute to group
                 .strength(0.2) // Strength to foci
@@ -309,12 +295,12 @@ export default withTooltip<NetworkChartProps, any>(
                 .forceCharge(-527) // Charge between the meta-nodes (Force template only)
                 .forceNodeSize(25) // Used to compute the template force nodes size (Force template only)
             )
-            .force("charge", d3.forceManyBody().strength(-4))
-            .force("collide", d3.forceCollide(settings.nodeRadius * 2))
-            .force("link", 
-                d3.forceLink(displayedLinks)
-                    .distance(5)
-                    .strength(groupingForce.getLinkStrength));
+        } else {
+            forceSimulation
+                .force('x', forceX())
+                .force('y', forceY())
+        }
+        
         const svg = d3.selectAll('.network-graph')
             .attr('width', width)
             .attr('height', height > 15 ? height-15 : height)
@@ -451,7 +437,7 @@ export default withTooltip<NetworkChartProps, any>(
             forceSimulation.on('tick', () => {   
                 updateNodes();
                 updateLinks();
-                updateGroups();
+                if(groupingEnabled) updateGroups();
         
                 nodeLabels.attr('transform', (d: any) => `translate(${d.x},${d.y})`);
 
@@ -564,7 +550,7 @@ export default withTooltip<NetworkChartProps, any>(
                 }
             }
         },
-        [displayedNodes, portLinksData, fileVersionLinksData, networkActivityLinksData, displayedLinks, width, height, linkMouseOver, mouseOut, nodeMouseOver, groupIds, fileVersionColorScale, networkActivityColorScale, hostColorScale],
+        [displayedNodes, displayedLinks, groupingEnabled, width, height, linkMouseOver, mouseOut, networkActivityLinksData, fileVersionLinksData, nodeMouseOver, groupIds, portLinksData, fileVersionColorScale, networkActivityColorScale, hostColorScale],
     );
 
     useEffect(() => {
@@ -579,8 +565,9 @@ export default withTooltip<NetworkChartProps, any>(
         setDisplayedLinks(
             [...portLinksData, ...fileVersionLinksData, ...networkActivityLinksData]
                 .filter(link => displayedNodes.includes(link.source) && displayedNodes.includes(link.target))
+                .filter(link => !hiddenLinkTypes.includes(link.__typename))
         );
-    }, [displayedNodes, fileVersionLinksData, networkActivityLinksData, portLinksData])
+    }, [displayedNodes, fileVersionLinksData, hiddenLinkTypes, networkActivityLinksData, portLinksData])
 
     useEffect(() => {
         let destroyFn;
@@ -599,76 +586,7 @@ export default withTooltip<NetworkChartProps, any>(
                 className='network-graph'
                 width={width}
                 height={height}/>
-            {/* Host Legend */}
-            <div className={clsx(classes.legend)}>
-                <div className={clsx(classes.legendTitle)}>Hosts</div>
-                <LegendOrdinal scale={hostColorScale} labelFormat={label => `${label.toUpperCase()}`}>
-                    {labels => (
-                        <div style={{display: 'flex', flexDirection: 'column', cursor: 'pointer'}}>
-                            {labels.map((label, i) => (
-                                <LegendItem
-                                    key={`legend-host-${i}`}
-                                    margin='0 0 5px'
-                                    onClick={() => {
-                                        setHiddenHosts(prevHosts => prevHosts.includes(label.datum) ? prevHosts.filter(host => host !== label.datum) : [...prevHosts, label.datum])
-                                    }}
-                                >
-                                    <svg width='15' height='15'>
-                                        <rect 
-                                            fill={ hiddenHosts.includes(label.datum) ? '#fff' : label.value }
-                                            stroke={label.value}
-                                            strokeWidth='1.5'
-                                            width='13' 
-                                            height='13' x='1' y='1' />
-                                    </svg>
-                                    <LegendLabel align='left' margin='0 0 0 4px'>
-                                        {label.text}
-                                    </LegendLabel>
-                                </LegendItem> 
-                            ))}
-                        </div>
-                    )}
-                </LegendOrdinal>
-            </div>
-            {/* Node Type legend */}
-            <div className={clsx(classes.legend)} style={{left: '11%'}}>
-                <div className={clsx(classes.legendTitle)}>Nodes</div>
-                <Legend scale={shapeScale}>
-                {labels => (
-                    <div style={{ display: 'flex', flexDirection: 'column', cursor: 'pointer' }}>
-                    {labels.map((label, i) => {
-                        const color = '#000';
-                        const shape = shapeScale(label.datum);
-                        return (
-                        <LegendItem
-                            key={`legend-node-${i}`}
-                            margin='0 0 5px'
-                            onClick={() => {
-                                setHiddenNodeTypes(prevNodeTypes => prevNodeTypes.includes(label.datum) ? prevNodeTypes.filter(nodeType => nodeType !== label.datum) : [...prevNodeTypes, label.datum])
-                            }}
-                        >
-                            <svg width={15} height={15}>
-                                {React.isValidElement(shape)
-                                    ? React.cloneElement(shape as React.ReactElement<{fill: any, stroke: any, strokeWidth: any}>, {
-                                        fill: hiddenNodeTypes.includes(label.datum) ? '#fff' : '#000',
-                                        stroke: '#000',
-                                        strokeWidth: '2',
-                                    })
-                                    : React.createElement(shape as React.ComponentType<{ fill: string }>, {
-                                        fill: color,
-                                    })}
-                            </svg>
-                            <LegendLabel align="left" margin='0 0 0 4px'>
-                                {label.text}
-                            </LegendLabel>
-                        </LegendItem>
-                        );
-                    })}
-                    </div>
-                )}
-                </Legend>
-            </div>
-            <div className={clsx(classes.legend)} style={{left: '22%'}}>
+            <div className={clsx(classes.legend)} style={{left: '1%'}}>
                 <div className={clsx(classes.legendTitle)}>FileVersion Links</div>
                 <LegendQuantile scale={fileVersionColorScale} labelFormat={(d, i) => twoDecimalFormat(d)}>
                     {labels =>
