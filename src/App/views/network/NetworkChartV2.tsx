@@ -15,7 +15,7 @@ declare global {
 
 const settings = {
     nodeRadius: 17,
-    nodeStrokeWidth: 1.5,
+    nodeStrokeWidth: 2,
     hoverFactor: 0.25,
 };
 const triangleHeight = Math.sqrt(3) * settings.nodeRadius;
@@ -40,6 +40,7 @@ const NetworkChart = ({
 
     const svgRef = useRef(null);
     const simulation = useRef(null);
+    let dragging = useRef(false);
 
     const nodes = useMemo(() => cloneDeep(displayedNodes), [displayedNodes]);
     const links = useMemo(() => cloneDeep(displayedLinks), [displayedLinks]);
@@ -84,7 +85,8 @@ const NetworkChart = ({
 
     const linkMouseOver = useCallback(
         (event: any, link: any) => {
-            simulation.current.stop();
+            if(focusedElement) return;
+
             dispatch(setHoveredElement(cloneDeep(link)));
 
             d3.selectAll('.node')
@@ -108,12 +110,13 @@ const NetworkChart = ({
                 .transition().duration(500)
                 .attr('opacity', (d: any) => link.id === d.id ? 1 : .2);
         },
-        [dispatch, hostColorScale]
+        [dispatch, focusedElement, hostColorScale]
     );
 
     const nodeMouseOver = useCallback(
         (event: any, node: any) => {
-            simulation.current.stop();
+            if(focusedElement) return;
+
             dispatch(setHoveredElement(cloneDeep(node)));
             
             const neighborNodesIDs = links
@@ -141,11 +144,13 @@ const NetworkChart = ({
                 .transition().duration(500)
                 .attr('opacity', (d: any) => (node.id === d.source.id || node.id === d.target.id) ? 1 : .2);
         },
-        [dispatch, links, hostColorScale],
+        [focusedElement, dispatch, links, hostColorScale],
     );
 
     const mouseOut = useCallback(
         () => {
+            if(focusedElement || dragging.current) return;
+
             dispatch(resetHoveredElement());
 
             d3.selectAll('.node')
@@ -168,11 +173,9 @@ const NetworkChart = ({
             d3.selectAll('.markerPath')
                 .transition().duration(250)
                 .attr('opacity', 1);
-
-            simulation.current.alphaTarget(0.01).restart();
         },
-        [dispatch],
-    )
+        [dispatch, focusedElement],
+    );
 
     const elementClicked = useCallback(
         (event: any, element: any) => {
@@ -180,7 +183,10 @@ const NetworkChart = ({
             // console.log(element);
             if(focusedElement) {
                 console.log(element.id === focusedElement.id)
-                if(element.id === focusedElement.id) dispatch(setFocusedElement(null));
+                if(element.id === focusedElement.id) {
+                    // dispatch(resetHoveredElement());
+                    dispatch(setFocusedElement(null));
+                }
             }
             if(event.defaultPrevented) return;
             dispatch(setFocusedElement(cloneDeep(element)));
@@ -307,7 +313,24 @@ const NetworkChart = ({
             .on('mouseover', nodeMouseOver)
             .on('mouseout', mouseOut)
             .on('click', elementClicked)
-            .call(nodeDragging(simulation.current));
+            .call(d3.drag()
+                .on('start', (event: any, node: any) => {
+                    simulation.current.alphaTarget(0.1).restart();
+                    dragging.current = true;
+                    node.fx = node.x;
+                    node.fy = node.y;
+                })
+                .on('drag', (event: any, node: any) => {
+                    node.fx = event.x;
+                    node.fy = event.y;
+                })
+                .on('end', (event: any, node: any) => {
+                    simulation.current.alphaTarget(0.1).restart();
+                    dragging.current = false;
+                    node.fx = null;
+                    node.fy = null;
+                })
+            );
     }, [hostColorScale, mouseOut, elementClicked, nodeMouseOver, nodes, svg]);
 
     const d3NodeLabels = useMemo(() => {
@@ -319,7 +342,7 @@ const NetworkChart = ({
         return selection.selectAll('.nodeLabel')
             .data(nodes)
             .join('text')
-            .attr('x', -7)
+            .attr('x', settings.nodeRadius + 3)
             .attr('y', '0.29em')
             .attr('class', 'nodeLabel')
             .attr('font-size', '0.6em')
@@ -337,11 +360,8 @@ const NetworkChart = ({
                     default:
                         return d.id;
                 }
-            })
-            .call(nodeDragging(simulation.current))
-            .on('mouseover', nodeMouseOver)
-            .on('mouseout', mouseOut);
-    }, [mouseOut, nodeMouseOver, nodes, svg]);
+            });
+    }, [nodes, svg]);
 
     const d3GroupPaths = useMemo(() => {
         return d3Groups.selectAll('.groupPath')
@@ -361,13 +381,14 @@ const NetworkChart = ({
     useEffect(() => {
         simulation.current = d3.forceSimulation()
             .nodes(nodes)
-            .force("charge", d3.forceManyBody().strength(-120))
-            .force("collide", d3.forceCollide(20))
+            .force("charge", d3.forceManyBody().strength(-527))
+            .force("collide", d3.forceCollide(25))
             .force("link", d3.forceLink(links)
-                .distance(75)
-                .strength(0.3))
+                .distance(50)
+                .strength(0.1))
             .force('x', d3.forceX())
             .force('y', d3.forceY());
+
 
         simulation.current.on('tick', () => {
             updateNodes();
@@ -474,7 +495,7 @@ const NetworkChart = ({
               d3.select(path.node().parentNode).attr('transform', 'translate('  + centroid[0] + ',' + (centroid[1]) + ') scale(' + scaleFactor + ')');
             });
         }
-    });
+    }, []);
 
     useEffect(() => {
         let groupingForce: any = forceInABox();
@@ -526,31 +547,8 @@ function groupDragging (simulation: any, nodes: any) {
       }
 
     function end(event: any, node: any) {
-        simulation.alphaTarget(0.5).restart();
+        simulation.alphaTarget(0.3).restart();
         d3.select(this).style('stroke-width', 1);
-    }
-
-    return d3.drag()
-        .on('start', start)
-        .on('drag', drag)
-        .on('end', end);
-}
-
-function nodeDragging(simulation: any) {
-    function start(event: any, node: any) {
-        if (!event.active) simulation.alphaTarget(0.3).restart();
-        node.fx = node.x;
-        node.fy = node.y;
-    }
-
-    function drag(event: any, node: any) {
-        node.fx = event.x;
-        node.fy = event.y;
-    }
-
-    function end(event: any, node: any) {
-        node.fx = null;
-        node.fy = null;
     }
 
     return d3.drag()
