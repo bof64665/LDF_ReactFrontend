@@ -8,13 +8,12 @@ import ParentSize from '@visx/responsive/lib/components/ParentSizeModern';
 import Paper from "@material-ui/core/Paper";
 import AppBar from "@material-ui/core/AppBar";  
 import Typography from '@material-ui/core/Typography';
-import Button from "@material-ui/core/Button";
 import { DateTime } from 'luxon';
 import EventTimeline from "./views/EventTimeline";
 import NetworkChart from "./views/network/NetworkChartV2";
-import { useAppDispatch, useAppSelector } from '../redux/hooks';
-import { resetHoveredElement, setFocusedElement } from '../redux/analysisSlice';
+import { useAppSelector } from '../redux/hooks';
 import SideMenu from './views/sideMenu/SideMenu';
+import DetailsOnDemand from './views/details/DetailsOnDemand';
 
 const useStyles = makeStyles((theme: Theme) =>
     createStyles({
@@ -53,8 +52,6 @@ const useStyles = makeStyles((theme: Theme) =>
 );
 
 function App() {
-    const dispatch = useAppDispatch();
-
     const {
         focusedElement,
         hoveredElement,
@@ -107,33 +104,17 @@ function App() {
                     <Grid item xs={4}>
                         <Paper className={clsx(classes.card, classes.rowGraph)}>
                             <Grid item xs={12}>
-                                <Typography style={{fontSize: '0.8rem'}}>Details</Typography>
+                                <Typography style={{fontSize: '0.8rem'}}>Additional information</Typography>
                             </Grid>
                             <Grid item xs={12}>
                                 {
                                     focusedElement && (
-                                        <div>
-                                            <Typography>
-                                                {focusedElement.id}
-                                            </Typography>
-                                            <Button 
-                                                variant="contained" 
-                                                color="secondary"
-                                                size="small"
-                                                onClick={() => {dispatch(setFocusedElement(null)); dispatch(resetHoveredElement())}} 
-                                                style={{ width: '100%', marginTop: '1.5%' }}>
-                                                    cancel
-                                            </Button>
-                                        </div>
+                                        <DetailsOnDemand focus={true} />
                                     )
                                 }
                                 {
                                     !focusedElement && hoveredElement.id !== '-1' && (
-                                        <div>
-                                            <Typography>
-                                                {hoveredElement.id}
-                                            </Typography>
-                                        </div>
+                                        <DetailsOnDemand focus={false} />
                                     )
                                 }
                             </Grid>

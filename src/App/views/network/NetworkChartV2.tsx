@@ -5,6 +5,7 @@ import * as d3 from 'd3';
 import { scaleOrdinal, scaleQuantile } from '@visx/scale';
 import { useAppDispatch, useAppSelector } from "../../../redux/hooks";
 import { resetFocusedElement, resetHoveredElement, setFocusedElement, setHoveredElement } from "../../../redux/analysisSlice";
+import { useTheme } from "@material-ui/core/styles";
 
 
 declare global {
@@ -14,8 +15,9 @@ declare global {
 }
 
 const settings = {
-    nodeRadius: 17,
-    nodeStrokeWidth: 2,
+    nodeRadius: 15,
+    nodeStrokeWidth: 4,
+    linkStrokeWidth: 4,
     hoverFactor: 0.25,
 };
 const triangleHeight = Math.sqrt(3) * settings.nodeRadius;
@@ -27,6 +29,8 @@ const NetworkChart = ({
     width: number,
     height: number,
 }) => {
+    const theme = useTheme();
+
     const dispatch = useAppDispatch();
     const {
         groupingEnabled,
@@ -168,16 +172,15 @@ const NetworkChart = ({
 
     const elementClicked = useCallback(
         (event: any, element: any) => {
+            if(event.defaultPrevented || element.__typename === 'PortLink') return;
+
             if(focusedElement) {
-                console.log(element.id === focusedElement.id)
-                if(element.id === focusedElement.id) {             
+                if(element.id === focusedElement.id) {   
+                    dispatch(resetHoveredElement());          
                     dispatch(resetFocusedElement());
-                    dispatch(resetHoveredElement());
                     return;
                 }
             }
-
-            if(event.defaultPrevented) return;
 
             dispatch(setFocusedElement(cloneDeep(element)));
             element.__typename === 'PortLink' || element.__typename === 'NetworkActivity' || element.__typename === 'FileVersion' ? highlightLink(element) : highlightNode(element);
@@ -220,8 +223,11 @@ const NetworkChart = ({
             .attr('markerHeight',13)
             .attr('xoverflow','visible')
             .append('path')
-            .attr('d', 'M 0 -3 L 6 0 L 0 3')
+            .attr('d', 'M 0 -4 L 8 0 L 0 4')
             .attr('fill', (d: any) => {
+                if (focusedElement) {
+                    if(focusedElement.id === d.id) return theme.palette.secondary.main;
+                }
                 switch (d.__typename) {
                     case 'FileVersion':
                         return fileVersionColorScale(d.byteProportion);
@@ -230,7 +236,7 @@ const NetworkChart = ({
                     }
                 })
             .style('stroke','none');;
-    }, [fileVersionColorScale, links, networkActivityColorScale, svg]);
+    }, [fileVersionColorScale, focusedElement, links, networkActivityColorScale, svg, theme.palette.secondary.main]);
 
     const d3LinkMarkerPaths: d3.Selection<d3.BaseType | SVGPathElement, any, d3.BaseType, unknown> = useMemo(() => {
         let selection = d3.select('.linkMarkerPaths')
@@ -260,9 +266,13 @@ const NetworkChart = ({
             .join('path')
             .attr('id', (d: any) => d.id)
             .attr('class', 'link')
+            .attr('cursor', (d: any) => d.__typename !== 'PortLink' ? 'pointer' : 'default')
             .attr('stroke', '#999')
             .attr('fill', 'none')
             .attr('stroke', (d: any) => {
+                if (focusedElement) {
+                    if(focusedElement.id === d.id) return theme.palette.secondary.main;
+                }
                 switch (d.__typename) {
                     case 'PortLink':
                         return '#999';
@@ -272,7 +282,7 @@ const NetworkChart = ({
                         return networkActivityColorScale(d.byteProportion);
                 }
             })
-            .attr('stroke-width', 3)
+            .attr('stroke-width', settings.linkStrokeWidth)
             .attr('stroke-dasharray', (d: any) => {
                 switch (d.__typename) {
                     case 'PortLink':
@@ -286,7 +296,7 @@ const NetworkChart = ({
             .on('mouseover', handleLinkMouseOver)
             .on('mouseout', handleMouseOut)
             .on('click', elementClicked);
-    }, [links, handleLinkMouseOver, handleMouseOut, elementClicked, svg, fileVersionColorScale, networkActivityColorScale]);
+    }, [links, handleLinkMouseOver, handleMouseOut, elementClicked, svg, focusedElement, theme.palette.secondary.main, fileVersionColorScale, networkActivityColorScale]);
 
     const d3Nodes: d3.Selection<d3.BaseType | SVGPathElement, any, d3.BaseType, unknown> = useMemo(() => {
         let selection = d3.select('.nodes');
@@ -299,8 +309,15 @@ const NetworkChart = ({
             .join('path')
             .attr('class', 'node')
             .attr('id', (d: any) => d.id)
+            .attr('cursor', 'pointer')
             .attr('stroke', '#fff')
-            .attr('fill', (d: any) => hostColorScale(d.hostName))
+            .attr('stroke-width', settings.nodeStrokeWidth)
+            .attr('fill', (d: any) => {
+                if (focusedElement) {
+                    if (focusedElement.id === d.id) return theme.palette.secondary.main;
+                }
+                return hostColorScale(d.hostName)
+            })
             .on('mouseover', handleNodeMouseOver)
             .on('mouseout', handleMouseOut)
             .on('click', elementClicked)
@@ -322,7 +339,7 @@ const NetworkChart = ({
                     node.fy = null;
                 })
             );
-    }, [hostColorScale, handleMouseOut, elementClicked, handleNodeMouseOver, nodes, svg]);
+    }, [nodes, handleNodeMouseOver, handleMouseOut, elementClicked, svg, focusedElement, hostColorScale, theme.palette.secondary.main]);
 
     const d3NodeLabels = useMemo(() => {
         let selection = d3.select('.nodeLabels')
