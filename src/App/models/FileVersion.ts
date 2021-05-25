@@ -5,4 +5,5 @@ export class FileVersion {
     source: string;
     fileSize: number;
     action: string;
+    __typename: 'FileVersion';
 }

@@ -4,4 +4,5 @@ export class File {
     path: string;
     name: string;
     type: string;
+    __typename: 'File';
 }

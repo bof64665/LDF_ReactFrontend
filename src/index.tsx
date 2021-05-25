@@ -1,3 +1,4 @@
+import './wdyr'; // <--- first import
 import React from 'react';
 import ReactDOM from 'react-dom';
 import { ApolloProvider } from '@apollo/client/react';
@@ -8,11 +9,13 @@ import App from './App/App';
 import reportWebVitals from './reportWebVitals';
 import { ApolloClient, InMemoryCache } from '@apollo/client';
 import { Helmet } from 'react-helmet';
+import { Provider } from "react-redux";
+import { filterStore } from "./redux/store";
 
 const client = new ApolloClient({
     uri: 'http://localhost:4000',
     cache: new InMemoryCache()
-})
+});
 
 ReactDOM.render(
   <React.StrictMode>
@@ -21,7 +24,10 @@ ReactDOM.render(
             <Helmet>
                 <script src="https://unpkg.com/force-in-a-box@1.0.1/dist/forceInABox.js" type="text/javascript" />
             </Helmet>
-            <App />
+            <Provider store={filterStore}>
+                <App />
+            </Provider>
+                
           </MuiPickersUtilsProvider>
       </ApolloProvider>
   </React.StrictMode>,

@@ -6,4 +6,5 @@ export class NetworkActivity {
     protocol: string;
     length: number;
     process?: string;
+    __typename: 'NetworkActivity';
 }
