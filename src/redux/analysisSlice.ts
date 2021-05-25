@@ -159,6 +159,9 @@ export const analysisSlice = createSlice({
         setFocusedElement: (state, action: PayloadAction<any>) => {
             state.focusedElement = action.payload
         },
+        resetFocusedElement: (state) => {
+            state.focusedElement = null;
+        },
         setHoveredElement: (state, action: PayloadAction<any>) => {
             state.hoveredElement = action.payload
         },
@@ -225,6 +228,7 @@ export const {
     hideFileVersionLink,
     hideNetworkActivityLink,
     setFocusedElement,
+    resetFocusedElement,
     setHoveredElement,
     resetHoveredElement, 
     setMinDateTime,

@@ -4,7 +4,7 @@ import { useCallback, useMemo, useEffect, useRef } from "react";
 import * as d3 from 'd3';
 import { scaleOrdinal, scaleQuantile } from '@visx/scale';
 import { useAppDispatch, useAppSelector } from "../../../redux/hooks";
-import { resetHoveredElement, setFocusedElement, setHoveredElement } from "../../../redux/analysisSlice";
+import { resetFocusedElement, resetHoveredElement, setFocusedElement, setHoveredElement } from "../../../redux/analysisSlice";
 
 
 declare global {
@@ -36,6 +36,7 @@ const NetworkChart = ({
         networkActivityLinkData,
         fileVersionLinkData,
         focusedElement,
+        hoveredElement,
     } = useAppSelector( state => state.analysisSliceReducer );
 
     const svgRef = useRef(null);
@@ -83,12 +84,8 @@ const NetworkChart = ({
             .map(element => element[1].hostName);
     }, [groupingEnabled, nodes]);
 
-    const linkMouseOver = useCallback(
-        (event: any, link: any) => {
-            if(focusedElement) return;
-
-            dispatch(setHoveredElement(cloneDeep(link)));
-
+    const highlightLink = useCallback(
+        (link: any) => {
             d3.selectAll('.node')
                 .transition().duration(500)
                 .attr('opacity', (d: any) => d.id === link.target.id || d.id === link.source.id ? 1 : .2)
@@ -110,15 +107,11 @@ const NetworkChart = ({
                 .transition().duration(500)
                 .attr('opacity', (d: any) => link.id === d.id ? 1 : .2);
         },
-        [dispatch, focusedElement, hostColorScale]
+        [hostColorScale],
     );
 
-    const nodeMouseOver = useCallback(
-        (event: any, node: any) => {
-            if(focusedElement) return;
-
-            dispatch(setHoveredElement(cloneDeep(node)));
-            
+    const highlightNode = useCallback(
+        (node: any) => {
             const neighborNodesIDs = links
                 .filter((link: any) => link.source.id === node.id || link.target.id === node.id)
                 .map((link: any) => link.source.id === node.id ? link.target.id : link.source.id);
@@ -131,7 +124,7 @@ const NetworkChart = ({
             d3.selectAll('.nodeLabel')
                 .transition().duration(500)
                 .attr('opacity', (d: any) => node.id === d.id || neighborNodesIDs.indexOf (d.id) > -1 ? 1 : .2);
-        
+
             d3.selectAll('.link')
                 .transition().duration(500)
                 .attr('opacity', (d: any) => (node.id === d.source.id || node.id === d.target.id) ? 1 : .2);
@@ -144,54 +137,52 @@ const NetworkChart = ({
                 .transition().duration(500)
                 .attr('opacity', (d: any) => (node.id === d.source.id || node.id === d.target.id) ? 1 : .2);
         },
-        [focusedElement, dispatch, links, hostColorScale],
+        [hostColorScale, links]
     );
 
-    const mouseOut = useCallback(
+    const handleNodeMouseOver = useCallback(
+        (event: any, node: any) => {
+            if(focusedElement) return;
+            dispatch(setHoveredElement(cloneDeep(node)));   
+            highlightNode(node);
+        },
+        [focusedElement, dispatch, highlightNode],
+    );
+
+    const handleLinkMouseOver = useCallback(
+        (event: any, link: any) => {
+            if(focusedElement) return;
+            dispatch(setHoveredElement(cloneDeep(link)));
+            highlightLink(link);
+        },
+        [dispatch, focusedElement, highlightLink]
+    );
+
+    const handleMouseOut = useCallback(
         () => {
             if(focusedElement || dragging.current) return;
-
             dispatch(resetHoveredElement());
-
-            d3.selectAll('.node')
-                .transition().duration(250)
-                .attr('opacity', 1)
-                .attr('stroke', '#fff');
-
-            d3.selectAll('.nodeLabel')
-                .transition().duration(250)
-                .attr('opacity', 1);
-
-            d3.selectAll('.link')
-                .transition().duration(250)
-                .attr('opacity', 1);
-
-            d3.selectAll('.marker')
-                .transition().duration(250)
-                .attr('opacity', 1);
-    
-            d3.selectAll('.markerPath')
-                .transition().duration(250)
-                .attr('opacity', 1);
         },
         [dispatch, focusedElement],
     );
 
     const elementClicked = useCallback(
         (event: any, element: any) => {
-            
-            // console.log(element);
             if(focusedElement) {
                 console.log(element.id === focusedElement.id)
-                if(element.id === focusedElement.id) {
-                    // dispatch(resetHoveredElement());
-                    dispatch(setFocusedElement(null));
+                if(element.id === focusedElement.id) {             
+                    dispatch(resetFocusedElement());
+                    dispatch(resetHoveredElement());
+                    return;
                 }
             }
+
             if(event.defaultPrevented) return;
+
             dispatch(setFocusedElement(cloneDeep(element)));
+            element.__typename === 'PortLink' || element.__typename === 'NetworkActivity' || element.__typename === 'FileVersion' ? highlightLink(element) : highlightNode(element);
         },
-        [dispatch, focusedElement],
+        [dispatch, focusedElement, highlightLink, highlightNode],
     );
 
     const svg = useCallback(() => d3.selectAll('.network-graph')
@@ -292,10 +283,10 @@ const NetworkChart = ({
                         return 0;
                 }
             })
-            .on('mouseover', linkMouseOver)
-            .on('mouseout', mouseOut)
+            .on('mouseover', handleLinkMouseOver)
+            .on('mouseout', handleMouseOut)
             .on('click', elementClicked);
-    }, [links, linkMouseOver, mouseOut, elementClicked, svg, fileVersionColorScale, networkActivityColorScale]);
+    }, [links, handleLinkMouseOver, handleMouseOut, elementClicked, svg, fileVersionColorScale, networkActivityColorScale]);
 
     const d3Nodes: d3.Selection<d3.BaseType | SVGPathElement, any, d3.BaseType, unknown> = useMemo(() => {
         let selection = d3.select('.nodes');
@@ -310,8 +301,8 @@ const NetworkChart = ({
             .attr('id', (d: any) => d.id)
             .attr('stroke', '#fff')
             .attr('fill', (d: any) => hostColorScale(d.hostName))
-            .on('mouseover', nodeMouseOver)
-            .on('mouseout', mouseOut)
+            .on('mouseover', handleNodeMouseOver)
+            .on('mouseout', handleMouseOut)
             .on('click', elementClicked)
             .call(d3.drag()
                 .on('start', (event: any, node: any) => {
@@ -331,7 +322,7 @@ const NetworkChart = ({
                     node.fy = null;
                 })
             );
-    }, [hostColorScale, mouseOut, elementClicked, nodeMouseOver, nodes, svg]);
+    }, [hostColorScale, handleMouseOut, elementClicked, handleNodeMouseOver, nodes, svg]);
 
     const d3NodeLabels = useMemo(() => {
         let selection = d3.select('.nodeLabels')
@@ -495,7 +486,7 @@ const NetworkChart = ({
               d3.select(path.node().parentNode).attr('transform', 'translate('  + centroid[0] + ',' + (centroid[1]) + ') scale(' + scaleFactor + ')');
             });
         }
-    }, []);
+    }, [d3GroupPaths, d3LinkMarkerPaths, d3Links, d3NodeLabels, d3Nodes, groupIds, groupingEnabled, links, nodes]);
 
     useEffect(() => {
         let groupingForce: any = forceInABox();
@@ -503,13 +494,13 @@ const NetworkChart = ({
             simulation.current.force("group", groupingForce
                 .template('force') // Either treemap or force
                 .groupBy("hostName") // Nodes' attribute to group
-                .strength(0.2) // Strength to foci
+                .strength(0.4) // Strength to foci
                 .links(links) // The graph links. Must be called after setting the grouping attribute (Force template only)
                 .enableGrouping(true)
                 .linkStrengthInterCluster(0.01) // linkStrength between nodes of different clusters
-                .linkStrengthIntraCluster(0.11) // linkStrength between nodes of the same cluster
-                .forceLinkDistance(5000) // linkDistance between meta-nodes on the template (Force template only)
-                .forceLinkStrength(0.035) // linkStrength between meta-nodes of the template (Force template only)
+                .linkStrengthIntraCluster(0.5) // linkStrength between nodes of the same cluster
+                .forceLinkDistance(50) // linkDistance between meta-nodes on the template (Force template only)
+                .forceLinkStrength(0.1) // linkStrength between meta-nodes of the template (Force template only)
                 .forceCharge(-527) // Charge between the meta-nodes (Force template only)
                 .forceNodeSize(25) // Used to compute the template force nodes size (Force template only)
             )
@@ -518,7 +509,11 @@ const NetworkChart = ({
                 .force('x', d3.forceX())
                 .force('y', d3.forceY())
         }
-    }, [links, groupingEnabled])
+    }, [links, groupingEnabled]);
+
+    useEffect(() => {
+        if(hoveredElement.id === '-1') resetElementHighlight();
+    }, [hoveredElement])
 
     return <svg ref={svgRef} className='network-graph' width={width} height={height}/>;
 }
@@ -556,5 +551,28 @@ function groupDragging (simulation: any, nodes: any) {
         .on('drag', drag)
         .on('end', end);
 }
+
+function resetElementHighlight () {
+    d3.selectAll('.node')
+        .transition().duration(250)
+        .attr('opacity', 1)
+        .attr('stroke', '#fff');
+
+    d3.selectAll('.nodeLabel')
+        .transition().duration(250)
+        .attr('opacity', 1);
+
+    d3.selectAll('.link')
+        .transition().duration(250)
+        .attr('opacity', 1);
+
+    d3.selectAll('.marker')
+        .transition().duration(250)
+        .attr('opacity', 1);
+
+    d3.selectAll('.markerPath')
+        .transition().duration(250)
+        .attr('opacity', 1);
+};
 
 export default NetworkChart;

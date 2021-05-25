@@ -13,7 +13,7 @@ import { DateTime } from 'luxon';
 import EventTimeline from "./views/EventTimeline";
 import NetworkChart from "./views/network/NetworkChartV2";
 import { useAppDispatch, useAppSelector } from '../redux/hooks';
-import { setFocusedElement } from '../redux/analysisSlice';
+import { resetHoveredElement, setFocusedElement } from '../redux/analysisSlice';
 import SideMenu from './views/sideMenu/SideMenu';
 
 const useStyles = makeStyles((theme: Theme) =>
@@ -120,7 +120,7 @@ function App() {
                                                 variant="contained" 
                                                 color="secondary"
                                                 size="small"
-                                                onClick={() => dispatch(setFocusedElement(null))} 
+                                                onClick={() => {dispatch(setFocusedElement(null)); dispatch(resetHoveredElement())}} 
                                                 style={{ width: '100%', marginTop: '1.5%' }}>
                                                     cancel
                                             </Button>
