@@ -53,8 +53,6 @@ const useStyles = makeStyles((theme: Theme) =>
 
 function App() {
     const {
-        focusedElement,
-        hoveredElement,
         brushedStartDateTime,
         brushedEndDateTime
     } = useAppSelector(state => state.analysisSliceReducer);
@@ -102,23 +100,7 @@ function App() {
                     </Grid>
 
                     <Grid item xs={4}>
-                        <Paper className={clsx(classes.card, classes.rowGraph)}>
-                            <Grid item xs={12}>
-                                <Typography style={{fontSize: '0.8rem'}}>Additional information</Typography>
-                            </Grid>
-                            <Grid item xs={12}>
-                                {
-                                    focusedElement && (
-                                        <DetailsOnDemand focus={true} />
-                                    )
-                                }
-                                {
-                                    !focusedElement && hoveredElement.id !== '-1' && (
-                                        <DetailsOnDemand focus={false} />
-                                    )
-                                }
-                            </Grid>
-                        </Paper>
+                        <DetailsOnDemand />
                     </Grid>
                 </Grid>
             </main>

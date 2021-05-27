@@ -2,7 +2,7 @@ import {configureStore} from '@reduxjs/toolkit';
 import { analysisSliceReducer } from './analysisSlice';
 
 export const filterStore = configureStore({
-    reducer: { analysisSliceReducer}
+    reducer: { analysisSliceReducer},
 });
 
 

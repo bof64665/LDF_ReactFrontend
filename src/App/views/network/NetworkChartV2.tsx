@@ -16,7 +16,7 @@ declare global {
 
 const settings = {
     nodeRadius: 15,
-    nodeStrokeWidth: 4,
+    nodeStrokeWidth: 2.5,
     linkStrokeWidth: 4,
     hoverFactor: 0.25,
 };
@@ -146,7 +146,7 @@ const NetworkChart = ({
 
     const handleNodeMouseOver = useCallback(
         (event: any, node: any) => {
-            if(focusedElement) return;
+            if(focusedElement.id !== '-1') return;
             dispatch(setHoveredElement(cloneDeep(node)));   
             highlightNode(node);
         },
@@ -155,7 +155,7 @@ const NetworkChart = ({
 
     const handleLinkMouseOver = useCallback(
         (event: any, link: any) => {
-            if(focusedElement) return;
+            if(focusedElement.id !== '-1') return;
             dispatch(setHoveredElement(cloneDeep(link)));
             highlightLink(link);
         },
@@ -164,7 +164,7 @@ const NetworkChart = ({
 
     const handleMouseOut = useCallback(
         () => {
-            if(focusedElement || dragging.current) return;
+            if(focusedElement.id !== '-1' || dragging.current) return;
             dispatch(resetHoveredElement());
         },
         [dispatch, focusedElement],
@@ -174,12 +174,10 @@ const NetworkChart = ({
         (event: any, element: any) => {
             if(event.defaultPrevented || element.__typename === 'PortLink') return;
 
-            if(focusedElement) {
-                if(element.id === focusedElement.id) {   
-                    dispatch(resetHoveredElement());          
-                    dispatch(resetFocusedElement());
-                    return;
-                }
+            if(element.id === focusedElement.id) {   
+                dispatch(resetHoveredElement());          
+                dispatch(resetFocusedElement());
+                return;
             }
 
             dispatch(setFocusedElement(cloneDeep(element)));
@@ -225,9 +223,7 @@ const NetworkChart = ({
             .append('path')
             .attr('d', 'M 0 -4 L 8 0 L 0 4')
             .attr('fill', (d: any) => {
-                if (focusedElement) {
-                    if(focusedElement.id === d.id) return theme.palette.secondary.main;
-                }
+                if(focusedElement.id === d.id) return theme.palette.secondary.main;
                 switch (d.__typename) {
                     case 'FileVersion':
                         return fileVersionColorScale(d.byteProportion);
@@ -270,9 +266,7 @@ const NetworkChart = ({
             .attr('stroke', '#999')
             .attr('fill', 'none')
             .attr('stroke', (d: any) => {
-                if (focusedElement) {
-                    if(focusedElement.id === d.id) return theme.palette.secondary.main;
-                }
+                if(focusedElement.id === d.id) return theme.palette.secondary.main;
                 switch (d.__typename) {
                     case 'PortLink':
                         return '#999';
@@ -313,9 +307,7 @@ const NetworkChart = ({
             .attr('stroke', '#fff')
             .attr('stroke-width', settings.nodeStrokeWidth)
             .attr('fill', (d: any) => {
-                if (focusedElement) {
-                    if (focusedElement.id === d.id) return theme.palette.secondary.main;
-                }
+                if (focusedElement.id === d.id) return theme.palette.secondary.main;
                 return hostColorScale(d.hostName)
             })
             .on('mouseover', handleNodeMouseOver)
@@ -530,7 +522,7 @@ const NetworkChart = ({
 
     useEffect(() => {
         if(hoveredElement.id === '-1') resetElementHighlight();
-    }, [hoveredElement])
+    }, [hoveredElement]);
 
     return <svg ref={svgRef} className='network-graph' width={width} height={height}/>;
 }

@@ -58,7 +58,7 @@ const initialState: AnalysisSlice = {
     hiddenHosts: [],
     hiddenFileVersionLinks: [],
     hiddenNetworkActivityLinks: [],
-    focusedElement: null,
+    focusedElement: {id: '-1'},
     hoveredElement: {id: '-1'},
 
     minDateTime: DateTime.now().toMillis(),
@@ -160,13 +160,13 @@ export const analysisSlice = createSlice({
             state.focusedElement = action.payload
         },
         resetFocusedElement: (state) => {
-            state.focusedElement = null;
+            state.focusedElement = Object.assign({id: '-1'});
         },
         setHoveredElement: (state, action: PayloadAction<any>) => {
             state.hoveredElement = action.payload
         },
         resetHoveredElement: (state) => {
-            state.hoveredElement = {id: '-1'};
+            state.hoveredElement = Object.assign({id: '-1'});
         },
         setMinDateTime: (state, action: PayloadAction<number>) => {
             state.minDateTime = action.payload;
