@@ -43,7 +43,7 @@ const NodeTypeFilter = ({
 
     const legendTriangleHeight = Math.sqrt(3) * shapeSize;
     const nodeTypeScale = scaleOrdinal<string, React.FC | React.ReactNode>({
-        domain: ['Process', 'Port', 'File', 'EndPoint'],
+        domain: ['Process', 'Port', 'File'],
         range: [
             <path 
                 d={`
@@ -61,12 +61,6 @@ const NodeTypeFilter = ({
                     M 1 ${legendTriangleHeight}
                     L ${shapeSize * 2 - 1} ${legendTriangleHeight}
                     L ${shapeSize} 1 Z
-            `} fill="#dd59b8" />,
-            <path d={`
-                    M 1 1
-                    L 1 ${shapeSize * 2}
-                    L ${shapeSize * 2} ${shapeSize * 2}
-                    L ${shapeSize * 2} 0 Z
             `} fill="#dd59b8" />,
         ],
     });

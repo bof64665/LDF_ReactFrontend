@@ -45,10 +45,10 @@ const SideMenu = () => {
     const dispatch = useAppDispatch();
     const {
         groupingEnabled,
-        rawFilesData,
-        rawPortsData,
-        rawProcessesData,
-        rawEndpointsData
+        fileVersionLinkData,
+        networkActivityLinkData,
+        displayedLinks,
+        displayedNodes,
     } = useAppSelector(state => state.analysisSliceReducer);
 
     return (
@@ -57,7 +57,7 @@ const SideMenu = () => {
             <SearchParameters />
             <Divider />
             
-            {[...rawFilesData, ...rawPortsData, ...rawProcessesData, ...rawEndpointsData].length > 0 &&
+            {[...displayedLinks, ...displayedNodes].length > 0 &&
                 <Grid container spacing={2} style={{marginBottom: '10px', marginTop: '10px'}}>
                     <Grid item xs={1} />
                     <Grid item xs={6}>
@@ -78,15 +78,9 @@ const SideMenu = () => {
                     </Grid>
                     <Grid item xs={1} />
 
-                    <Grid item xs={1} />
-                    
-                    <Grid item xs={5}>
-                        <NodeTypeFilter shapeSize={legendSettings.nodeRadius} strokeWidth={legendSettings.strokeWidth}/>
-                    </Grid>
-                    
-                    <Grid item xs={5}>
-                        <LinkTypeFilter shapeSize={legendSettings.nodeRadius} strokeWidth={legendSettings.strokeWidth}/>
-                    </Grid>
+                    <Grid item xs={1} />                    
+                    {displayedNodes.length > 0 && <Grid item xs={5}><NodeTypeFilter shapeSize={legendSettings.nodeRadius} strokeWidth={legendSettings.strokeWidth}/></Grid>}
+                    {displayedLinks.length > 0 && <Grid item xs={5}><LinkTypeFilter shapeSize={legendSettings.nodeRadius} strokeWidth={legendSettings.strokeWidth}/></Grid>}
                     <Grid item xs={1} />
 
                     
@@ -105,12 +99,8 @@ const SideMenu = () => {
                     <Grid item xs={1} />
 
                     <Grid item xs={1} />
-                    <Grid item xs={5}>
-                        <FileVersionLinkFilter shapeSize={legendSettings.nodeRadius} strokeWidth={legendSettings.strokeWidth}/>
-                    </Grid>             
-                    <Grid item xs={5}>
-                        <NetworkActivityLinkFilter shapeSize={legendSettings.nodeRadius} strokeWidth={legendSettings.strokeWidth}/>
-                    </Grid>
+                    {fileVersionLinkData.length > 0 &&  <Grid item xs={5}><FileVersionLinkFilter shapeSize={legendSettings.nodeRadius} strokeWidth={legendSettings.strokeWidth}/></Grid>}
+                    {networkActivityLinkData.length > 0 && <Grid item xs={5}><NetworkActivityLinkFilter shapeSize={legendSettings.nodeRadius} strokeWidth={legendSettings.strokeWidth}/></Grid>}                                
                     <Grid item xs={1} />
                 </Grid>
             }          

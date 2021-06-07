@@ -15,9 +15,9 @@ declare global {
 }
 
 const settings = {
-    nodeRadius: 15,
+    nodeRadius: 10,
     nodeStrokeWidth: 2.5,
-    linkStrokeWidth: 4,
+    linkStrokeWidth: 2,
     hoverFactor: 0.25,
 };
 const triangleHeight = Math.sqrt(3) * settings.nodeRadius;
@@ -91,24 +91,24 @@ const NetworkChart = ({
     const highlightLink = useCallback(
         (link: any) => {
             d3.selectAll('.node')
-                .transition().duration(500)
+                .transition().duration(250)
                 .attr('opacity', (d: any) => d.id === link.target.id || d.id === link.source.id ? 1 : .2)
                 .attr('stroke', (d: any) => d.id === link.target.id || d.id === link.source.id ? hostColorScale(d.hostName) : '#fff');
 
             d3.selectAll('.nodeLabel')
-                .transition().duration(500)
+                .transition().duration(250)
                 .attr('opacity', (d: any) => d.id === link.target.id || d.id === link.source.id ? 1 : .2);
 
             d3.selectAll('.link')
-                .transition().duration(500)
+                .transition().duration(250)
                 .attr('opacity', (d: any) => link.id === d.id ? 1 : .2);
 
             d3.selectAll('.marker')
-                .transition().duration(500)
+                .transition().duration(250)
                 .attr('opacity', (d: any) => link.id === d.id ? 1 : .2);
     
             d3.selectAll('.markerPath')
-                .transition().duration(500)
+                .transition().duration(250)
                 .attr('opacity', (d: any) => link.id === d.id ? 1 : .2);
         },
         [hostColorScale],
@@ -121,24 +121,24 @@ const NetworkChart = ({
                 .map((link: any) => link.source.id === node.id ? link.target.id : link.source.id);
 
             d3.selectAll('.node')
-                .transition().duration(500)
+                .transition().duration(250)
                 .attr('opacity', (d: any) => node.id === d.id || neighborNodesIDs.indexOf (d.id) > -1 ? 1 : .2)
                 .attr('stroke', (d: any) => node.id === d.id || neighborNodesIDs.indexOf (d.id) > -1 ? hostColorScale(d.hostName) : '#fff');
 
             d3.selectAll('.nodeLabel')
-                .transition().duration(500)
+                .transition().duration(250)
                 .attr('opacity', (d: any) => node.id === d.id || neighborNodesIDs.indexOf (d.id) > -1 ? 1 : .2);
 
             d3.selectAll('.link')
-                .transition().duration(500)
+                .transition().duration(250)
                 .attr('opacity', (d: any) => (node.id === d.source.id || node.id === d.target.id) ? 1 : .2);
 
             d3.selectAll('.marker')
-                .transition().duration(500)
+                .transition().duration(250)
                 .attr('opacity', (d: any) => (node.id === d.source.id || node.id === d.target.id) ? 1 : .2);
 
             d3.selectAll('.markerPath')
-                .transition().duration(500)
+                .transition().duration(250)
                 .attr('opacity', (d: any) => (node.id === d.source.id || node.id === d.target.id) ? 1 : .2);
         },
         [hostColorScale, links]
@@ -148,18 +148,18 @@ const NetworkChart = ({
         (event: any, node: any) => {
             if(focusedElement.id !== '-1') return;
             dispatch(setHoveredElement(cloneDeep(node)));   
-            highlightNode(node);
+            // highlightNode(node);
         },
-        [focusedElement, dispatch, highlightNode],
+        [focusedElement, dispatch],
     );
 
     const handleLinkMouseOver = useCallback(
         (event: any, link: any) => {
             if(focusedElement.id !== '-1') return;
             dispatch(setHoveredElement(cloneDeep(link)));
-            highlightLink(link);
+            // highlightLink(link);
         },
-        [dispatch, focusedElement, highlightLink]
+        [dispatch, focusedElement]
     );
 
     const handleMouseOut = useCallback(
@@ -191,6 +191,13 @@ const NetworkChart = ({
         .attr('height', height > 15 ? height-15 : height)
         .attr('viewBox', `${-width / 2} ${-height / 2} ${width} ${height > 15 ? height-15: height}`)
     , [width, height]);
+
+    svg().on('click', (event: any) => {
+        if(event.target.localName === 'svg' && focusedElement.id !== '-1') {
+            dispatch(resetHoveredElement());          
+            dispatch(resetFocusedElement());
+        }
+    });
 
     const d3Groups = useMemo(() => {
         let selection = d3.select('.groups');
@@ -385,7 +392,7 @@ const NetworkChart = ({
             .force("collide", d3.forceCollide(25))
             .force("link", d3.forceLink(links)
                 .distance(50)
-                .strength(0.1))
+                .strength(0.3))
             .force('x', d3.forceX())
             .force('y', d3.forceY());
 
@@ -521,7 +528,7 @@ const NetworkChart = ({
     }, [links, groupingEnabled]);
 
     useEffect(() => {
-        if(hoveredElement.id === '-1') resetElementHighlight();
+        // if(hoveredElement.id === '-1') resetElementHighlight();
     }, [hoveredElement]);
 
     return <svg ref={svgRef} className='network-graph' width={width} height={height}/>;

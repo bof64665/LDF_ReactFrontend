@@ -69,9 +69,9 @@ const NetworkActivityCardContent = ({data}: {data: any}) => {
     return (
         <React.Fragment>
             <List>
-                <HoverFocusCardListItem primary={`${data.source.hostName}:${data.source.portNumber}`} secondary='Source port'><Dns /></HoverFocusCardListItem>
+                <HoverFocusCardListItem primary={`${data.source}`} secondary='Source port'><Dns /></HoverFocusCardListItem>
                 <HoverFocusCardListItem primary={`${data.overallLinkBytes} (${(data.byteProportion * 100).toPrecision(4)}% of all file versions)`} secondary='Bytes flowing over this link'><DeviceHub /></HoverFocusCardListItem>
-                <HoverFocusCardListItem primary={`${data.target.hostName}:${data.target.portNumber}`} secondary='Target port'><ScatterPlot /></HoverFocusCardListItem>
+                <HoverFocusCardListItem primary={`${data.target}`} secondary='Target port'><ScatterPlot /></HoverFocusCardListItem>
                 <ListItem button onClick={handleClickOpen}> 
                         <ListItemText disableTypography primary={
                                 <Typography variant='button' color='secondary'>
@@ -86,7 +86,7 @@ const NetworkActivityCardContent = ({data}: {data: any}) => {
                     </ListItem>
             </List>
             <Dialog open={open} onClose={handleClose} TransitionComponent={Transition} keepMounted fullWidth={true} maxWidth={'md'}>
-                <DialogTitle>Network Packages from <strong>{data.source.hostName}:{data.source.portNumber}</strong> to <strong>{data.target.hostName}:{data.target.portNumber}</strong></DialogTitle>
+                <DialogTitle>Network Packages from <strong>{data.source}</strong> to <strong>{data.target}</strong></DialogTitle>
                 <DialogContent>
                     <div style={{ height: 400, width: '100%' }}>
                         <DataGrid rows={data.activities} columns={columns} pageSize={5} disableColumnMenu />

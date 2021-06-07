@@ -47,12 +47,13 @@ interface AnalysisSlice {
     displayedNodes: any[],
     displayedLinks: any[],
 
+    localhost: string;
     activeHosts: string[],
 }
 
 // Define the initial state using that type
 const initialState: AnalysisSlice = {
-    groupingEnabled: false,
+    groupingEnabled: true,
     hiddenNodeTypes: [],
     hiddenLinkTypes: [],
     hiddenHosts: [],
@@ -63,7 +64,7 @@ const initialState: AnalysisSlice = {
 
     minDateTime: DateTime.now().toMillis(),
     maxDateTime: DateTime.now().toMillis(),
-    aggregationGranularity: 60000,
+    aggregationGranularity: 86400000,
     startDateTime: DateTime.now().toMillis(),
     endDateTime: DateTime.now().toMillis(),
     brushedStartDateTime: DateTime.now().toMillis(),
@@ -87,6 +88,7 @@ const initialState: AnalysisSlice = {
     displayedLinks: [],
     displayedNodes: [],
 
+    localhost: '10.0.0.3',
     activeHosts: [],
 }
 
@@ -157,6 +159,7 @@ export const analysisSlice = createSlice({
             state.displayedNodes = nodes;
         },
         setFocusedElement: (state, action: PayloadAction<any>) => {
+            if (!action.payload) return;
             state.focusedElement = action.payload
         },
         resetFocusedElement: (state) => {
@@ -209,9 +212,9 @@ export const analysisSlice = createSlice({
 
             const types = [];
             state.rawEndpointsData.forEach((endpoint: Endpoint) => {
-                if(!types.includes(endpoint.hostName)) types.push(endpoint.hostName);
+                if(!types.includes(endpoint.hostIp)) types.push(endpoint.hostIp);
             });
-            state.activeHosts = ['localhost', ...types];
+            state.activeHosts = ['10.0.0.3', ...types];
 
             const {nodes, links} = getDisplayedData(state, state.startDateTime, state.endDateTime);
             state.displayedLinks = links;
@@ -265,8 +268,8 @@ function getDisplayedData(state: AnalysisSlice, startTime: number, endTime: numb
 
    let displayedNodeIds = new Set();
    [...state.fileVersionLinkData, ...state.networkActivityLinkData].forEach((link: any) => {
-       displayedNodeIds.add(link.target.id);
-       displayedNodeIds.add(link.source.id);
+       displayedNodeIds.add(link.target);
+       displayedNodeIds.add(link.source);
    });
    state.filesData = state.rawFilesData.filter((file: File) => Array.from(displayedNodeIds).includes(file.id));
    state.portsData = state.rawPortsData.filter((port: Port) => Array.from(displayedNodeIds).includes(port.id));
@@ -275,8 +278,8 @@ function getDisplayedData(state: AnalysisSlice, startTime: number, endTime: numb
 
    displayedNodeIds = new Set();
    [...state.portLinkData, ...state.fileVersionLinkData].forEach((link: any) => {
-        displayedNodeIds.add(link.target.id);
-        displayedNodeIds.add(link.source.id);
+        displayedNodeIds.add(link.target);
+        displayedNodeIds.add(link.source);
    });
    state.processesData = state.rawProcessesData.filter((process: Process) => Array.from(displayedNodeIds).includes(process.id));
    state.endpointsData = state.rawEndpointsData.filter((endpoint: Endpoint) => Array.from(displayedNodeIds).includes(endpoint.id));
@@ -298,13 +301,8 @@ function applyDisplayFilters(state: AnalysisSlice): {nodes: any[], links: any[]}
     const networkActivityColorScale = getLinkQuantileColorScale(state.networkActivityLinkData);
     
     const displayedLinks = [...cloneDeep(state.portLinkData), ...cloneDeep(state.fileVersionLinkData), ...cloneDeep(state.networkActivityLinkData)]
-        .filter((link: any) => displayedNodeIds.includes(link.source.id) && displayedNodeIds.includes(link.target.id))
+        .filter((link: any) => displayedNodeIds.includes(link.source) && displayedNodeIds.includes(link.target))
         .filter((link: any) => !state.hiddenLinkTypes.includes(link.__typename))
-        .map((link: any) => {
-            link.source = displayedNodeIds.indexOf(link.source.id);
-            link.target = displayedNodeIds.indexOf(link.target.id);
-            return link;
-        })
         .filter((link: any) => {
             if(link.__typename === 'FileVersion') return !state.hiddenFileVersionLinks.includes(fileVersionColorScale(link.byteProportion));
             if(link.__typename === 'NetworkActivity') return !state.hiddenNetworkActivityLinks.includes(networkActivityColorScale(link.byteProportion));
@@ -315,7 +313,7 @@ function applyDisplayFilters(state: AnalysisSlice): {nodes: any[], links: any[]}
 }
 
 function getLinkQuantileColorScale(linkData: any[]) {
-    const proportions = linkData.map((link: any) => link.byteProportion)
+    const proportions = linkData.map((link: any) => link.byteProportion);
     return scaleQuantile({
         domain: [Math.min(...proportions), Math.max(...proportions)],
         range: ['#9096f8', '#78f6ef', '#6ce18b', '#f19938', '#eb4d70']
@@ -325,6 +323,7 @@ function getLinkQuantileColorScale(linkData: any[]) {
 function getPortLinkDataArray(ports: Port[], endpoints: Endpoint[], processes: Process[]): any[] {
     const tempPortLinks = [];
     ports.forEach((portNode: Port) => {
+        //if(portNode.hostName === '10.0.0.3') return;
         const portLink =  {
             __typename: 'PortLink',
             id: `port_${portNode.portNumber}_of_${portNode.hostName}`,
@@ -333,11 +332,11 @@ function getPortLinkDataArray(ports: Port[], endpoints: Endpoint[], processes: P
         }
         if (portNode.processes) {
             portNode.processes.forEach((processId: string) => {
-                portLink.target = processes.filter((process: Process) => processId === process.id)[0];
+                portLink.target = processId;
                 tempPortLinks.push({...portLink});
             })
         } else {
-            portLink.target = endpoints.filter((endpoint: Endpoint) => portNode.hostName === endpoint.hostName)[0];
+            portLink.target = portNode.hostName;
             tempPortLinks.push(portLink);
         }
     });
@@ -350,26 +349,30 @@ function getLinkDataMap(activities: any[], linkType: string, sourceNodes: Array<
     activities
         .filter((d: any) => d.timestamp > startTime && d.timestamp < endTime)
         .forEach((d: any) => {
+            let linkBytes = 0;
+            if (d.length) linkBytes = d.length;
+            if (d.fileSize) linkBytes = d.fileSize;
             const linkId = `${d.source}->${d.target}`;
-            overallBytes += d.length ? d.length : d.fileSize;
+            overallBytes += linkBytes;
             let link = returnMap.get(linkId);
             if(!link) {
+                
                 returnMap.set(linkId, {
                     id: linkId,
                     __typename: linkType, 
-                    target: targetNodes.filter((node: any) => node.id === d.target)[0],
-                    source: sourceNodes.filter((node: any) => node.id === d.source)[0],
-                    overallLinkBytes: d.length ? d.length : d.fileSize,
+                    target: d.target,
+                    source: d.source,
+                    overallLinkBytes: linkBytes,
                     activities: [d]
                 });
             } else {
                 link.activities.push(d);
-                link.overallLinkBytes += d.length ? d.length : d.fileSize;
+                link.overallLinkBytes += linkBytes;
                 returnMap.set(linkId, link);
             }
         });
     returnMap.forEach((value) => {
-        value.byteProportion = value.overallLinkBytes / overallBytes;
+        value.byteProportion = overallBytes === 0 ? 0 : value.overallLinkBytes / overallBytes;
     });
     return Array.from(returnMap).map((d: any) => d[1]);
 }

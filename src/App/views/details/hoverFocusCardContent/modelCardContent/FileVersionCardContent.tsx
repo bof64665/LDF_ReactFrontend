@@ -19,8 +19,13 @@ import { DataGrid, GridColDef, GridValueFormatterParams, GridColumnHeaderParams,
 import { DateTime } from 'luxon';
 import HoverFocusCardListItem from '../HoverFocusCardListItem';
 import Transition from './Transition';
+import { useAppSelector } from '../../../../../redux/hooks';
 
 const FileVersionCardContent = ({data}: {data: any}) => {
+    const {
+        displayedNodes,
+    } = useAppSelector( state => state.analysisSliceReducer );
+
     const [open, setOpen] = useState(false);
     const handleClickOpen = () => {
         setOpen(true);
@@ -77,12 +82,14 @@ const FileVersionCardContent = ({data}: {data: any}) => {
         }
       ];
 
+    const source = displayedNodes.find((node: any) => node.__typename === 'Process' && node.id === data.source);
+
     return (
         <React.Fragment>
             <List>
-                <HoverFocusCardListItem primary={data.source.name} secondary='Editing process'><Category /></HoverFocusCardListItem>
+                <HoverFocusCardListItem primary={source.name} secondary='Editing process'><Category /></HoverFocusCardListItem>
                 <HoverFocusCardListItem primary={`${data.overallLinkBytes} (${(data.byteProportion * 100).toPrecision(4)}% of all file versions)`} secondary='Bytes flowing over this link'><DeviceHub /></HoverFocusCardListItem>
-                <HoverFocusCardListItem primary={`${data.target.path}/${data.target.name}`} secondary='Edited file'><AccountTree /></HoverFocusCardListItem>
+                <HoverFocusCardListItem primary={`${data.target}`} secondary='Edited file'><AccountTree /></HoverFocusCardListItem>
                 <ListItem button onClick={handleClickOpen}> 
                     <ListItemText disableTypography primary={
                             <Typography variant='button' color='secondary'>
@@ -97,7 +104,7 @@ const FileVersionCardContent = ({data}: {data: any}) => {
                 </ListItem>
             </List>
             <Dialog open={open} onClose={handleClose} TransitionComponent={Transition} keepMounted fullWidth={true} maxWidth={'lg'}>
-                <DialogTitle>Versions of <strong>{data.target.name}</strong> edited by <strong>{data.source.name}</strong></DialogTitle>
+                <DialogTitle>Versions of <strong>{data.target}</strong> edited by <strong>{data.source.name}</strong></DialogTitle>
                 <DialogContent>
                     <div style={{ height: 400, width: '100%' }}>
                         <DataGrid rows={data.activities} columns={columns} pageSize={5} disableColumnMenu />

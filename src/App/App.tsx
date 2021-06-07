@@ -10,7 +10,7 @@ import AppBar from "@material-ui/core/AppBar";
 import Typography from '@material-ui/core/Typography';
 import { DateTime } from 'luxon';
 import EventTimeline from "./views/EventTimeline";
-import NetworkChart from "./views/network/NetworkChartV2";
+import NetworkChartV3 from "./views/network/NetworkChartV3";
 import { useAppSelector } from '../redux/hooks';
 import SideMenu from './views/sideMenu/SideMenu';
 import DetailsOnDemand from './views/details/DetailsOnDemand';
@@ -89,17 +89,20 @@ function App() {
                             </ParentSize>           
                         </Paper>   
                     </Grid>       
-                    <Grid item xs={8}>
-                        <Paper className={clsx(classes.card, classes.rowGraph)}>
+                    <Grid item xs={9}>
+                        <Paper className={classes.rowGraph}>
+                            <NetworkChartV3 />
+                        </Paper>
+{/*                     <Paper className={clsx(classes.card, classes.rowGraph)}>
                             <ParentSize>
                                 {({width: visWidth, height: visHeight}) => (
-                                    <NetworkChart width={visWidth} height={visHeight} />
+                                    <NetworkChartV2 width={visWidth} height={visHeight} />
                                 )}
                             </ParentSize>
-                        </Paper>
+                        </Paper> */}
                     </Grid>
 
-                    <Grid item xs={4}>
+                    <Grid item xs={3}>
                         <DetailsOnDemand />
                     </Grid>
                 </Grid>

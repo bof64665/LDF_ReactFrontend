@@ -41,12 +41,8 @@ const LinkTypeFilter = ({
     } = useAppSelector(state => state.analysisSliceReducer);
 
     const linkTypeScale = scaleOrdinal<string, React.FC | React.ReactNode>({
-        domain: ['PortLink', 'FileVersion', 'NetworkActivity'],
+        domain: ['NetworkActivity', 'FileVersion'],
         range: [
-            <path 
-                d={`M 0 0 l ${shapeSize * 2} ${shapeSize * 2}`}
-                strokeDasharray='2 1' strokeWidth='3'
-            />,
             <path 
                 d={`M 0 0 l ${shapeSize * 2} ${shapeSize * 2}`}
                 strokeWidth='3'
