@@ -15,8 +15,8 @@ const HoverFocusCardContent = ({data}: {data: any}) => {
             { data.__typename === 'Process' && <ProcessCardContent process={data} /> }
             { data.__typename === 'EndPoint' && <EndpointCardContent endpoint={data} /> }
             { data.__typename === 'File' && <FileCardContent file={data} /> }
-            { data.__typename === 'FileVersion' && <FileVersionCardContent data={data} /> }
-            { data.__typename === 'NetworkActivity' && <NetworkActivityCardContent data={data} /> }
+            { data.__typename === 'FileVersionLink' && <FileVersionCardContent data={data} /> }
+            { data.__typename === 'NetworkActivityLink' && <NetworkActivityCardContent data={data} /> }
             <Divider />
         </CardContent>
     )

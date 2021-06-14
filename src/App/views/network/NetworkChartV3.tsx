@@ -1,16 +1,18 @@
 import React, { useEffect, useRef, useMemo } from 'react';
 import fcose from 'cytoscape-fcose';
-// import cola from 'cytoscape-cola';
+import cola from 'cytoscape-cola';
 // import cxtmenu from 'cytoscape-cxtmenu';
 import cytoscape, { AbstractEventObject, EdgeSingular, NodeSingular } from 'cytoscape';
 import { useAppDispatch, useAppSelector } from '../../../redux/hooks';
 import { scaleOrdinal, scaleQuantile } from '@visx/scale';
 import * as d3 from 'd3';
 import { resetFocusedElement, setFocusedElement } from '../../../redux/analysisSlice';
+import "./styles.css";
 
+cytoscape.use(cola);
 cytoscape.use(fcose);
 // cytoscape.use( cxtmenu );
-
+  
 const NetworkChartV3: React.FunctionComponent = () => {
     const dispatch = useAppDispatch();
     const {
@@ -31,7 +33,7 @@ const NetworkChartV3: React.FunctionComponent = () => {
         domain: activeHosts}), [activeHosts]);
 
     const fileVersionColorScale = useMemo(() => {
-        const proportions = displayedLinks.filter(link => link.__typename === 'FileVersion').map((link: any) => link.byteProportion)
+        const proportions = displayedLinks.filter(link => link.__typename === 'FileVersionLink').map((link: any) => link.byteProportion)
         return scaleQuantile({
             domain: [Math.min(...proportions), Math.max(...proportions)],
             range: ['#9096f8', '#78f6ef', '#6ce18b', '#f19938', '#eb4d70']
@@ -39,7 +41,7 @@ const NetworkChartV3: React.FunctionComponent = () => {
     }, [displayedLinks]);
 
     const networkActivityColorScale = useMemo(() => {
-        const proportions = displayedLinks.filter(link => link.__typename === 'NetworkActivity').map((link: any) => link.byteProportion)
+        const proportions = displayedLinks.filter(link => link.__typename === 'NetworkActivityLink').map((link: any) => link.byteProportion)
         return scaleQuantile({
             domain: [Math.min(...proportions), Math.max(...proportions)],
             range: ['#9096f8', '#78f6ef', '#6ce18b', '#f19938', '#eb4d70']
@@ -62,12 +64,21 @@ const NetworkChartV3: React.FunctionComponent = () => {
             if (node.__typename === 'Process') tmpNodes.push( { 
                 data: {
                     id: node.id,
-                    label: node.name,
+                    label: node.name.split('/')[node.name.split('/').length - 1],
                     parent: node.hostName,
                     hostName: node.hostName,
                     __typename: 'Process'}
                 });
-            if (node.__typename === 'File') tmpNodes.push( { data: {id: node.id, label: node.type, parent: node.hostName, hostName: node.hostName, path: node.path, type: node.type, __typename: 'File'} });
+            if (node.__typename === 'File') tmpNodes.push( { 
+                data: {
+                    id: node.id,
+                    label: node.type,
+                    parent: node.hostName,
+                    hostName: node.hostName,
+                    path: node.path,
+                    type: node.type,
+                    __typename: 'File'} 
+                });
             if (node.__typename === 'Port') tmpNodes.push( { data: {id: node.id, label: node.portNumber, parent: node.hostName, hostName: node.hostName, __typename: 'Port'}})
         });
         return tmpNodes
@@ -76,14 +87,16 @@ const NetworkChartV3: React.FunctionComponent = () => {
     const links = useMemo(() => {
         const tmpLinks: { data: any }[]= []
         displayedLinks.forEach((link: any) => {
-            if (link.__typename === 'FileVersion') tmpLinks.push( { data: {id: link.id, source: link.source, target: link.target, byteProportion: link.byteProportion, __typename: 'FileVersion'}});
-            if (link.__typename === 'NetworkActivity') tmpLinks.push( { data: {id: link.id, source: link.source, target: link.target, byteProportion: link.byteProportion, __typename: 'NetworkActivity'}});
+            if (link.__typename === 'FileVersionLink') tmpLinks.push( { data: {id: link.id, source: link.source, target: link.target, byteProportion: link.byteProportion, __typename: 'FileVersionLink'}});
+            if (link.__typename === 'NetworkActivityLink') tmpLinks.push( { data: {id: link.id, source: link.source, target: link.target, byteProportion: link.byteProportion, __typename: 'NetworkActivityLink'}});
+            if (link.__typename === 'PortLink') tmpLinks.push( { data: {id: link.id, source: link.source, target: link.target, __typename: 'PortLink'} } );
         });
         return tmpLinks;
     }, [displayedLinks]);
 
     useEffect(() => {
         if (graph.current) {
+
             const elements: cytoscape.ElementDefinition[] = [...nodes, ...links];
 
             if(layout.current) {
@@ -96,16 +109,18 @@ const NetworkChartV3: React.FunctionComponent = () => {
             graph.current.add(elements.filter((element: any) => !graph.current.hasElementWithId(element.id)));
             
             graph.current
-                .edges('[__typename = "NetworkActivity"]')
+                .edges('[__typename = "NetworkActivityLink"]')
                 .style('line-color', (ele: EdgeSingular) => networkActivityColorScale(ele.data().byteProportion))
                 .style('target-arrow-color', (ele: EdgeSingular) => networkActivityColorScale(ele.data().byteProportion));
 
             graph.current
-                .edges('[__typename = "FileVersion"]')
+                .edges('[__typename = "FileVersionLink"]')
                 .style('line-color', (ele: EdgeSingular) => fileVersionColorScale(ele.data().byteProportion))
-                .style('target-arrow-color', (ele: EdgeSingular) => fileVersionColorScale(ele.data().byteProportion))
-                .style('line-style', 'dashed')
-                .style('line-dash-pattern', [6, 3]);
+                .style('target-arrow-color', (ele: EdgeSingular) => fileVersionColorScale(ele.data().byteProportion));
+
+            graph.current
+                .edges('.hover')
+                .style('line-color', '#bebebe')
 
             layout.current = graph.current.elements().makeLayout({
                 name: 'fcose',
@@ -126,48 +141,38 @@ const NetworkChartV3: React.FunctionComponent = () => {
         if(!graph.current) return;
 
         if(focusedElement.id === '-1') {
-            graph.current.edges().style('opacity', 1);
-            graph.current.nodes('node[parent]').style('opacity', 1)
+            graph.current.elements().removeClass('selected unselected');
         }
     }, [focusedElement.id])
 
     useEffect(() => {
         if (graph.current){
-            const focusEle = (type: string, event: AbstractEventObject) => {
-                const selectedEleId = event.target._private.data.id;
-
-                if (focusedElement.id === selectedEleId) {
-                    graph.current.edges().style('opacity', 1);
-                    graph.current.nodes('node[parent]').style('opacity', 1)
-        
+            graph.current.on('tap', 'edge', (e: AbstractEventObject) => {        
+                if (e.target.hasClass("selected") && e.target.data().id === focusedElement.id) {
+                    graph.current.elements().toggleClass('selected unselected', false);
                     dispatch(resetFocusedElement());
                 } else {
-                    const focusedEle = graph.current.elements(`${type}[id="${selectedEleId}"]`)[0];
-                    
-                    graph.current.edges().style('opacity', 0.2);
-                    graph.current.nodes('node[parent]').style('opacity', 0.2);
-        
-                    switch (type) {
-                        case 'edge':
-                            focusedEle.style('opacity', '1');
-                            focusedEle.targets().style('opacity', 1);
-                            focusedEle.sources().style('opacity', 1);
-                            dispatch(setFocusedElement(displayedLinks.filter((node: any) => node.id === selectedEleId)[0]));
-                            break;
-                        case 'node':
-                            focusedEle.style('opacity', '1');
-                            const connectedEdges = focusedEle.connectedEdges();
-                            connectedEdges.style('opacity', 1);
-                            connectedEdges.targets().style('opacity', 1);
-                            connectedEdges.sources().style('opacity', 1);
-                            dispatch(setFocusedElement(displayedNodes.filter((link: any) => link.id === selectedEleId)[0]));
-                            break;
-                    }            
+                    dispatch(setFocusedElement(displayedLinks.find((link: any) => link.id === e.target.data().id)));
+                    graph.current.elements().toggleClass('unselected', true);
+                    e.target.toggleClass('unselected', false).toggleClass("selected", true);
+                    e.target.targets().toggleClass('unselected', false).toggleClass("selected", true);
+                    e.target.sources().toggleClass('unselected', false).toggleClass("selected", true);
                 }
-            }
+            });
 
-            graph.current.on('tap', 'node', (event: AbstractEventObject) => focusEle('node', event));
-            graph.current.on('tap', 'edge', (event: AbstractEventObject) => focusEle('edge', event));
+            graph.current.on('tap', 'node', (e: AbstractEventObject) => {
+                if (e.target.hasClass("selected") && e.target.data().id === focusedElement.id) {
+                    graph.current.elements().toggleClass('selected unselected', false);
+                    dispatch(resetFocusedElement());
+                } else {
+                    dispatch(setFocusedElement(displayedNodes.find((node: any) => node.id === e.target.data().id)));
+                    graph.current.elements().toggleClass('unselected', true);
+                    e.target.toggleClass('unselected', false).toggleClass("selected", true);
+                    e.target.connectedEdges().toggleClass('unselected', false).toggleClass("selected", true);
+                    e.target.connectedEdges().targets().toggleClass('unselected', false).toggleClass("selected", true);
+                    e.target.connectedEdges().sources().toggleClass('unselected', false).toggleClass("selected", true);
+                }
+            });
         }
     }, [dispatch, displayedLinks, displayedNodes, focusedElement])
 
@@ -186,15 +191,16 @@ const NetworkChartV3: React.FunctionComponent = () => {
                     boxSelectionEnabled: true,
         
                     layout: {
-                        name: 'fcose',    
+                        name: "fcose",
                     },
         
-                    style:             
+                    style:      
                     [
                         {
                             selector: 'node',
                             style: {
-                                'transition-property': 'background-color border-color',
+                                "border-width": 4,
+                                "border-color": '#fff',
                             }
                         },
                         {
@@ -209,7 +215,7 @@ const NetworkChartV3: React.FunctionComponent = () => {
                                 'text-halign': 'center',
                                 'font-size': 10,
                             }
-                        },
+                        },  
                         {
                             selector: 'node[__typename = "Process"]',
                             style: {
@@ -229,18 +235,39 @@ const NetworkChartV3: React.FunctionComponent = () => {
                             }
                         },
                         {
-                            selector: 'node[__typename = "Endpoint"]',
+                            selector: '$node > node',
                             style: {
-                                'background-color': (ele: NodeSingular) => hostColorScale(ele.data().id),
-                                'background-opacity': 0.3,
-                                'border-color': (ele: NodeSingular) => hostColorScale(ele.data().id)
+                                "background-color": '#fff',
+                                "background-opacity": 1,
+                                "border-color": (ele: NodeSingular) => hostColorScale(ele.data().id),
                             }
                         },
-
+                        {
+                            selector: 'node.hover',
+                            style: {
+                               "border-color": (ele: NodeSingular) => hostColorScale(ele.data().hostName),
+                            }
+                        },
+                        //TODO: Die "Endpoint"-Knoten liegen beim Select anscheinend vor den anderen. 
+                        // Sieht man, da sich die border-color der normalen Knoten eindeutig verändert,
+                        // sie aber trotzdem irgendwie überlagert sind
+                        {
+                            selector: 'node.selected',
+                            style: {
+                                "border-color": (ele: NodeSingular) => hostColorScale(ele.data().hostName),
+                            },
+                        },
+                        {
+                            selector: 'node.unselected',
+                            style: {
+                                opacity: 0.2,
+                            }
+                        },
         
                         {
                             selector: 'edge',
                             style: {
+                                width: 1,
                                 'line-color': '#909090',
                                 'curve-style': 'bezier',
                                 'control-point-step-size': 40, 
@@ -248,7 +275,14 @@ const NetworkChartV3: React.FunctionComponent = () => {
                             }
                         },
                         {
-                            selector: 'edge[__typename = "NetworkActivity"]',
+                            selector: 'edge[__typename = "PortLink"]',
+                            style: {
+                                'curve-style': 'bezier',
+                                'source-arrow-shape': 'circle',
+                            }
+                        },
+                        {
+                            selector: 'edge[__typename = "NetworkActivityLink"]',
                             style: {
                                 'curve-style': 'bezier',
                                 'target-arrow-shape': 'triangle',
@@ -256,10 +290,30 @@ const NetworkChartV3: React.FunctionComponent = () => {
                             }
                         },
                         {
-                            selector: 'edge[__typename = "FileVersion"]',
+                            selector: 'edge[__typename = "FileVersionLink"]',
                             style: {
                                 'curve-style': 'bezier',
                                 'target-arrow-shape': 'triangle-tee',
+                                'line-style': 'dashed',
+                                'line-dash-pattern': [6, 3],
+                            }
+                        },
+                        {
+                            selector: 'edge.hover',
+                            style: {
+                                width: 4,
+                            }
+                        },
+                        {
+                            selector: 'edge.selected',
+                            style: {
+                                width: 4,
+                            },
+                        },
+                        {
+                            selector: 'edge.unselected',
+                            style: {
+                                opacity: 0.2,
                             }
                         }
                     ],
@@ -267,6 +321,12 @@ const NetworkChartV3: React.FunctionComponent = () => {
                     elements: [...nodes, ...links]
                 });
             }
+
+            graph.current.on('mouseover', 'node', (e: any) => e.target.addClass('hover'));
+            graph.current.on('mouseout', 'node', (e: any) => e.target.removeClass('hover'));
+
+            graph.current.on('mouseover', 'edge', (e: any) => e.target.addClass('hover'));
+            graph.current.on('mouseout', 'edge', (e: any) => e.target.removeClass('hover'));
 
             /* (graph.current as any).cxtmenu({
                 selector: 'node',
@@ -289,7 +349,7 @@ const NetworkChartV3: React.FunctionComponent = () => {
     }, [])
 
     return(
-       <div className="graph" ref={container} style={{ height: '100%'}}/>
+       <div id="cy" className="graph" ref={container} style={{ height: '100%' }}/>
     )
 }
 

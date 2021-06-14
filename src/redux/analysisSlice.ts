@@ -6,8 +6,6 @@ import { FileVersion } from '../App/models/FileVersion';
 import { NetworkActivity } from '../App/models/NetworkActivity';
 import { Port } from '../App/models/Port';
 import { Process } from '../App/models/Process';
-import type { RootState } from './store'
-import { cloneDeep } from 'lodash';
 import { scaleQuantile } from '@visx/scale';
 
 // Define a type for the slice state
@@ -16,10 +14,10 @@ interface AnalysisSlice {
     hiddenNodeTypes: string[],
     hiddenLinkTypes: string[],
     hiddenHosts: string[],
+    activeHosts: string[],
     hiddenFileVersionLinks: string[],
     hiddenNetworkActivityLinks: string[],
     focusedElement: any,
-    hoveredElement: any;
 
     minDateTime: number,
     maxDateTime: number,
@@ -29,26 +27,14 @@ interface AnalysisSlice {
     brushedStartDateTime: number,
     brushedEndDateTime: number,
 
-    rawPortsData: Port[],
-    rawProcessesData: Process[],
-    rawFilesData: File[],
-    rawEndpointsData: Endpoint[],
-    rawNetworkActivityData: NetworkActivity[],
-    rawFileVersionData: FileVersion[],
+    dataBuckets: any[],
+    brushedBuckets: any[],
 
     fileVersionLinkData: any[],
     networkActivityLinkData: any[],
-    portLinkData: any[],
-    portsData: any[],
-    processesData: any[],
-    endpointsData: any[],
-    filesData: any[],
 
     displayedNodes: any[],
     displayedLinks: any[],
-
-    localhost: string;
-    activeHosts: string[],
 }
 
 // Define the initial state using that type
@@ -56,11 +42,11 @@ const initialState: AnalysisSlice = {
     groupingEnabled: true,
     hiddenNodeTypes: [],
     hiddenLinkTypes: [],
+    activeHosts: [],
     hiddenHosts: [],
     hiddenFileVersionLinks: [],
     hiddenNetworkActivityLinks: [],
     focusedElement: {id: '-1'},
-    hoveredElement: {id: '-1'},
 
     minDateTime: DateTime.now().toMillis(),
     maxDateTime: DateTime.now().toMillis(),
@@ -70,26 +56,62 @@ const initialState: AnalysisSlice = {
     brushedStartDateTime: DateTime.now().toMillis(),
     brushedEndDateTime: DateTime.now().toMillis(),
 
-    rawPortsData: [],
-    rawProcessesData: [],
-    rawFilesData: [],
-    rawEndpointsData: [],
-    rawNetworkActivityData: [],
-    rawFileVersionData: [],
+    dataBuckets: [],
+    brushedBuckets: [],
 
     fileVersionLinkData: [],
     networkActivityLinkData: [],
-    portLinkData: [],
-    portsData: [],
-    processesData: [],
-    endpointsData: [],
-    filesData: [],
 
     displayedLinks: [],
     displayedNodes: [],
+}
 
-    localhost: '10.0.0.3',
-    activeHosts: [],
+type ApiData = {
+    ports: Port[],
+    processes: Process[],
+    files: File[],
+    endpoints: Endpoint[],
+    networkActivity: NetworkActivity[],
+    fileVersion: FileVersion[]
+}
+
+type ActiveData = {
+    ports: Port[],
+    processes: Process[],
+    files: File[],
+    endpoints: Endpoint[],
+    networkActivity: NetworkActivity[],
+    fileVersion: FileVersion[],
+    portLink: any[],
+}
+
+const rawData: ApiData = {
+    ports: [],
+    processes: [],
+    files: [],
+    endpoints: [],
+    networkActivity: [],
+    fileVersion: [],
+}
+
+const activeData: ActiveData = {
+    ports: [],
+    processes: [],
+    files: [],
+    endpoints: [],
+    networkActivity: [],
+    fileVersion: [],
+    portLink: [],
+}
+
+type LookUps = {
+    networkActivity: Map<string, number[]>,
+    fileVersion: Map<string, number[]>
+}
+
+const lookUpMaps: LookUps = {
+    networkActivity: new Map<string, number[]>(),
+    fileVersion: new Map<string, number[]>(),
 }
 
 export const analysisSlice = createSlice({
@@ -108,7 +130,7 @@ export const analysisSlice = createSlice({
                 state.hiddenNodeTypes.push(action.payload);
             }
 
-            const {nodes, links} = applyDisplayFilters(state);
+            const {nodes, links} = getDisplayedData(state);
             state.displayedLinks = links;
             state.displayedNodes = nodes;
         },
@@ -120,7 +142,7 @@ export const analysisSlice = createSlice({
                 state.hiddenLinkTypes.push(action.payload);
             }
 
-            const {nodes, links} = applyDisplayFilters(state);
+            const {nodes, links} = getDisplayedData(state);
             state.displayedLinks = links;
             state.displayedNodes = nodes;
         },
@@ -132,7 +154,7 @@ export const analysisSlice = createSlice({
                 state.hiddenHosts.push(action.payload);
             }
 
-            const {nodes, links} = applyDisplayFilters(state);
+            const {nodes, links} = getDisplayedData(state);
             state.displayedLinks = links;
             state.displayedNodes = nodes;
         },
@@ -143,7 +165,7 @@ export const analysisSlice = createSlice({
                 state.hiddenFileVersionLinks.push(action.payload);
             }
 
-            const {nodes, links} = applyDisplayFilters(state);
+            const {nodes, links} = getDisplayedData(state);
             state.displayedLinks = links;
             state.displayedNodes = nodes;
         },
@@ -154,7 +176,7 @@ export const analysisSlice = createSlice({
                 state.hiddenNetworkActivityLinks.push(action.payload);
             }
 
-            const {nodes, links} = applyDisplayFilters(state);
+            const {nodes, links} = getDisplayedData(state);
             state.displayedLinks = links;
             state.displayedNodes = nodes;
         },
@@ -164,12 +186,6 @@ export const analysisSlice = createSlice({
         },
         resetFocusedElement: (state) => {
             state.focusedElement = Object.assign({id: '-1'});
-        },
-        setHoveredElement: (state, action: PayloadAction<any>) => {
-            state.hoveredElement = action.payload
-        },
-        resetHoveredElement: (state) => {
-            state.hoveredElement = Object.assign({id: '-1'});
         },
         setMinDateTime: (state, action: PayloadAction<number>) => {
             state.minDateTime = action.payload;
@@ -189,9 +205,10 @@ export const analysisSlice = createSlice({
             state.endDateTime = action.payload;
             state.brushedEndDateTime = action.payload;
         },
-        setBrushBoundaries: (state, action: PayloadAction<{startTimestamp: number, endTimeStamp: number}>) => {
+        setBrush: (state, action: PayloadAction<{startTimestamp: number, endTimeStamp: number, buckets: any}>) => {
             state.brushedStartDateTime = action.payload.startTimestamp;
             state.brushedEndDateTime = action.payload.endTimeStamp;
+            state.brushedBuckets = action.payload.buckets;
 
             const {nodes, links} = getDisplayedData(state, action.payload.startTimestamp, action.payload.endTimeStamp);
             state.displayedLinks = links;
@@ -201,20 +218,41 @@ export const analysisSlice = createSlice({
             state.aggregationGranularity = action.payload;
         },
         initRawData: (state, action: PayloadAction<{
-            ports: Port[], processes: Process[], files: File[], endpoints: Endpoint[], fileVersions: FileVersion[], networkActivities: NetworkActivity[]
+            ports: Port[],
+            processes: Process[],
+            files: File[],
+            endpoints: Endpoint[],
+            dataBuckets: any[],
+            fileVersions: FileVersion[],
+            fileVersionLinks: any[];
+            fileVersionLookUp: any[];
+            networkActivities: NetworkActivity[],
+            networkActivityLinks: any[];
+            networkActivityLookUp: any[];
         }>) => {
-            state.rawPortsData = action.payload.ports;
-            state.rawProcessesData = action.payload.processes;
-            state.rawFilesData = action.payload.files;
-            state.rawEndpointsData = action.payload.endpoints;
-            state.rawFileVersionData = action.payload.fileVersions;
-            state.rawNetworkActivityData = action.payload.networkActivities;
+            rawData.ports = action.payload.ports;
+            rawData.processes = action.payload.processes;
+            rawData.files = action.payload.files;
+            rawData.endpoints = action.payload.endpoints;
+            rawData.fileVersion = action.payload.fileVersions;
+            state.fileVersionLinkData = action.payload.fileVersionLinks;
+            rawData.networkActivity = action.payload.networkActivities;
+            state.networkActivityLinkData = action.payload.networkActivityLinks;
+            state.dataBuckets = action.payload.dataBuckets;
 
-            const types = [];
-            state.rawEndpointsData.forEach((endpoint: Endpoint) => {
-                if(!types.includes(endpoint.hostIp)) types.push(endpoint.hostIp);
+            action.payload.fileVersionLookUp.forEach((d: {key: string, value: number[]}) => {
+                lookUpMaps.fileVersion.set(d.key, d.value);
             });
-            state.activeHosts = ['10.0.0.3', ...types];
+
+            action.payload.networkActivityLookUp.forEach((d: {key: string, value: number[]}) => {
+                lookUpMaps.networkActivity.set(d.key, d.value);
+            });
+
+            const types: Set<string> = new Set<string>();
+            rawData.endpoints.forEach((endpoint: Endpoint) => {
+                types.add(endpoint.hostIp);
+            });
+            state.activeHosts = ['10.0.0.3', ...Array.from(types).sort()];
 
             const {nodes, links} = getDisplayedData(state, state.startDateTime, state.endDateTime);
             state.displayedLinks = links;
@@ -232,67 +270,79 @@ export const {
     hideNetworkActivityLink,
     setFocusedElement,
     resetFocusedElement,
-    setHoveredElement,
-    resetHoveredElement, 
     setMinDateTime,
     setMaxDateTime,
     setStartDateTime,
     setEndDateTime,
-    setBrushBoundaries,
+    setBrush,
     setAggregationGranularity, 
     initRawData,
 } = analysisSlice.actions
 
-// Other code such as selectors can use the imported `RootState` type
-export const selectMinDateTime = (state: RootState) => state.analysisSliceReducer.minDateTime;
-export const selectRawFilesData = (state: RootState) => state.analysisSliceReducer.rawFilesData;
-
 export const analysisSliceReducer = analysisSlice.reducer;
 
-function getDisplayedData(state: AnalysisSlice, startTime: number, endTime: number): {nodes: any[], links: any[]} {
-    state.fileVersionLinkData = getLinkDataMap(
-        state.rawFileVersionData, 
-        'FileVersion', 
-        state.rawProcessesData, 
-        state.rawFilesData, 
-        startTime, 
-        endTime);
 
-    state.networkActivityLinkData = getLinkDataMap(
-        state.rawNetworkActivityData, 
-        'NetworkActivity', 
-        state.rawPortsData, 
-        state.rawPortsData, 
-        startTime, 
-        endTime);
 
-   let displayedNodeIds = new Set();
-   [...state.fileVersionLinkData, ...state.networkActivityLinkData].forEach((link: any) => {
-       displayedNodeIds.add(link.target);
-       displayedNodeIds.add(link.source);
+function getDisplayedData(state: AnalysisSlice, startTime?: number, endTime?: number): {nodes: any[], links: any[]} {
+    const startTimeHash = startTime ? Math.floor(startTime / state.aggregationGranularity) : Math.floor(state.startDateTime / state.aggregationGranularity);
+    const endTimeHash = endTime ? Math.floor(endTime / state.aggregationGranularity) : Math.floor(state.endDateTime / state.aggregationGranularity);
+    
+    activeData.fileVersion = [];
+    state.fileVersionLinkData.forEach((link: any) => {
+        if(lookUpMaps.fileVersion.get(link.id).filter((d: any) => d >= startTimeHash && d <= endTimeHash).length > 0) {
+            activeData.fileVersion.push(link);
+        }
+    });
+
+    activeData.networkActivity = [];
+    state.networkActivityLinkData.forEach((link: any) => {
+        if (lookUpMaps.networkActivity.get(link.id).filter((d: any) => d >= startTimeHash && d <= endTimeHash).length > 0) {
+            activeData.networkActivity.push(link);
+        }
+    });
+
+   let activeNodeIds: Set<string> = new Set<string>();
+   [...activeData.fileVersion, ...activeData.networkActivity].forEach((link: any) => {
+       activeNodeIds.add(link.target);
+       activeNodeIds.add(link.source);
    });
-   state.filesData = state.rawFilesData.filter((file: File) => Array.from(displayedNodeIds).includes(file.id));
-   state.portsData = state.rawPortsData.filter((port: Port) => Array.from(displayedNodeIds).includes(port.id));
+   activeData.files = rawData.files.filter((file: File) => activeNodeIds.has(file.id));
+   activeData.ports = rawData.ports.filter((port: Port) => activeNodeIds.has(port.id));
 
-   state.portLinkData = getPortLinkDataArray(state.portsData, state.rawEndpointsData, state.rawProcessesData);
+   rawData.ports.filter((port: Port) => port.processes).forEach((port: Port) => activeData.ports.push(port));
 
-   displayedNodeIds = new Set();
-   [...state.portLinkData, ...state.fileVersionLinkData].forEach((link: any) => {
-        displayedNodeIds.add(link.target);
-        displayedNodeIds.add(link.source);
+   activeData.ports.forEach((port: Port) => {
+       if(port.processes) {
+           port.processes.forEach((pid: string) => {
+               activeData.portLink.push({
+                   __typename: 'PortLink',
+                   id: `port_${port.id}-${pid}`,
+                   target: port.id,
+                   source: pid
+               });
+           });
+       } else {
+           activeNodeIds.add(port.hostName);
+       }
    });
-   state.processesData = state.rawProcessesData.filter((process: Process) => Array.from(displayedNodeIds).includes(process.id));
-   state.endpointsData = state.rawEndpointsData.filter((endpoint: Endpoint) => Array.from(displayedNodeIds).includes(endpoint.id));
+
+   [...activeData.fileVersion, ...activeData.portLink].forEach((link: any) => {
+        activeNodeIds.add(link.target);
+        activeNodeIds.add(link.source);
+   });
+
+   activeData.processes = rawData.processes.filter((process: Process) => activeNodeIds.has(process.id));
+   activeData.endpoints = rawData.endpoints.filter((endpoint: Endpoint) => activeNodeIds.has(endpoint.id));
 
     return applyDisplayFilters(state);
 }
 
 function applyDisplayFilters(state: AnalysisSlice): {nodes: any[], links: any[]} {
     const displayedNodes = [
-        ...cloneDeep(state.endpointsData),
-        ...cloneDeep(state.filesData), 
-        ...cloneDeep(state.portsData), 
-        ...cloneDeep(state.processesData)]
+        ...activeData.endpoints,
+        ...activeData.files, 
+        ...activeData.ports, 
+        ...activeData.processes]
             .filter(node => !state.hiddenHosts.includes(node.hostName))
             .filter(node => !state.hiddenNodeTypes.includes(node.__typename));
 
@@ -300,14 +350,14 @@ function applyDisplayFilters(state: AnalysisSlice): {nodes: any[], links: any[]}
     const fileVersionColorScale = getLinkQuantileColorScale(state.fileVersionLinkData);
     const networkActivityColorScale = getLinkQuantileColorScale(state.networkActivityLinkData);
     
-    const displayedLinks = [...cloneDeep(state.portLinkData), ...cloneDeep(state.fileVersionLinkData), ...cloneDeep(state.networkActivityLinkData)]
+    const displayedLinks = [...activeData.portLink, ...activeData.fileVersion, ...activeData.networkActivity]
         .filter((link: any) => displayedNodeIds.includes(link.source) && displayedNodeIds.includes(link.target))
         .filter((link: any) => !state.hiddenLinkTypes.includes(link.__typename))
         .filter((link: any) => {
-            if(link.__typename === 'FileVersion') return !state.hiddenFileVersionLinks.includes(fileVersionColorScale(link.byteProportion));
-            if(link.__typename === 'NetworkActivity') return !state.hiddenNetworkActivityLinks.includes(networkActivityColorScale(link.byteProportion));
+            if(link.__typename === 'FileVersionLink') return !state.hiddenFileVersionLinks.includes(fileVersionColorScale(link.byteProportion));
+            if(link.__typename === 'NetworkActivityLink') return !state.hiddenNetworkActivityLinks.includes(networkActivityColorScale(link.byteProportion));
             return true;
-        })
+        });
 
     return {nodes: displayedNodes, links: displayedLinks};
 }
@@ -318,61 +368,4 @@ function getLinkQuantileColorScale(linkData: any[]) {
         domain: [Math.min(...proportions), Math.max(...proportions)],
         range: ['#9096f8', '#78f6ef', '#6ce18b', '#f19938', '#eb4d70']
     });
-}
-
-function getPortLinkDataArray(ports: Port[], endpoints: Endpoint[], processes: Process[]): any[] {
-    const tempPortLinks = [];
-    ports.forEach((portNode: Port) => {
-        //if(portNode.hostName === '10.0.0.3') return;
-        const portLink =  {
-            __typename: 'PortLink',
-            id: `port_${portNode.portNumber}_of_${portNode.hostName}`,
-            source: portNode,
-            target: null
-        }
-        if (portNode.processes) {
-            portNode.processes.forEach((processId: string) => {
-                portLink.target = processId;
-                tempPortLinks.push({...portLink});
-            })
-        } else {
-            portLink.target = portNode.hostName;
-            tempPortLinks.push(portLink);
-        }
-    });
-    return tempPortLinks;
-}
-
-function getLinkDataMap(activities: any[], linkType: string, sourceNodes: Array<Process | Port>, targetNodes: Array<File | Port>, startTime: number, endTime: number): any[] {
-    const returnMap = new Map(); 
-    let overallBytes = 0;
-    activities
-        .filter((d: any) => d.timestamp > startTime && d.timestamp < endTime)
-        .forEach((d: any) => {
-            let linkBytes = 0;
-            if (d.length) linkBytes = d.length;
-            if (d.fileSize) linkBytes = d.fileSize;
-            const linkId = `${d.source}->${d.target}`;
-            overallBytes += linkBytes;
-            let link = returnMap.get(linkId);
-            if(!link) {
-                
-                returnMap.set(linkId, {
-                    id: linkId,
-                    __typename: linkType, 
-                    target: d.target,
-                    source: d.source,
-                    overallLinkBytes: linkBytes,
-                    activities: [d]
-                });
-            } else {
-                link.activities.push(d);
-                link.overallLinkBytes += linkBytes;
-                returnMap.set(linkId, link);
-            }
-        });
-    returnMap.forEach((value) => {
-        value.byteProportion = overallBytes === 0 ? 0 : value.overallLinkBytes / overallBytes;
-    });
-    return Array.from(returnMap).map((d: any) => d[1]);
 }

@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useRef, useState} from 'react';
+import {useMemo, useRef, useState} from 'react';
 import { useTheme } from '@material-ui/core/styles';
 import { scaleTime, scaleLinear, scaleBand } from '@visx/scale';
 import {AxisBottom, AxisLeft} from '@visx/axis';
@@ -11,11 +11,9 @@ import { max } from 'd3-array';
 import { timeFormat } from 'd3';
 import { DateTime } from 'luxon';
 import { useAppDispatch, useAppSelector } from '../../redux/hooks';
-import { setBrushBoundaries } from '../../redux/analysisSlice';
-import { FileVersion } from '../models/FileVersion';
-import { NetworkActivity } from '../models/NetworkActivity';
+import { setBrush } from '../../redux/analysisSlice';
 
-const margin = {top: 8, left: 30, bottom: 19, right: 10};
+const margin = {top: 8, left: 50, bottom: 19, right: 10};
 const selectedBrushStyle = { fill: '#919191', opacity: 0.5, stroke: 'white' };
 
 const EventTimeline = ({
@@ -32,14 +30,12 @@ const EventTimeline = ({
         aggregationGranularity,
         startDateTime,
         endDateTime,
-        rawFileVersionData,
-        rawNetworkActivityData
+        dataBuckets
     } = useAppSelector(state => state.analysisSliceReducer);
 
     const brushRef = useRef<BaseBrush | null>(null);
     const [brushed, setBrushed] = useState<boolean>(false);
-    const [dataBucketsMap, setDataBucketsMap] = useState<Map<number, any>>(new Map());
-    const [brushedDataBucketsMap, setBrushedDataBucketsMap] = useState<Map<number, any>>(new Map());
+    const [brushedDataBuckets, setBrushedDataBuckets] = useState<any>([]);
 
     //dimensions
     const innerHeight = height - margin.top - margin.bottom;
@@ -49,8 +45,11 @@ const EventTimeline = ({
     const xMax = Math.max(width - margin.left - margin.right, 0);
     const yMax = Math.max(chartHeight, 0);
 
-    const dataBuckets = useMemo(() => Array.from(dataBucketsMap).map((d: any) => d[1]), [dataBucketsMap]);
-    const brushedDataBuckets = useMemo(() => Array.from(brushedDataBucketsMap).map((d: any) => d[1]), [brushedDataBucketsMap]);
+    const dataBucketsMap = useMemo(() =>{
+        const map = new Map<number, any>();
+        dataBuckets.forEach((bucket: any) => map.set(parseInt(bucket.id), bucket));
+        return map;
+    }, [dataBuckets]);
 
     //scales
     const xTimeScale = useMemo(
@@ -82,61 +81,40 @@ const EventTimeline = ({
     const bucketAxisTimeFormat = (date: any): any => {
         const startDateTime = DateTime.fromMillis(date);
         const endDateTime = startDateTime.plus({milliseconds: aggregationGranularity});
-        return timeFormat(`${startDateTime.toFormat('dd.LL, HH:mm:ss')} - ${endDateTime.toFormat('dd.LL, HH:mm:ss')}`);
+        return timeFormat(`${startDateTime.toFormat('dd.LL, HH:mm:ss')} \n- ${endDateTime.toFormat('dd.LL, HH:mm:ss')}`);
     }
-
-    useEffect(() => {
-        if (!rawFileVersionData || !rawNetworkActivityData) return;
-        const buckets = new Map();
-        let bucketStartTime = DateTime.fromMillis(startDateTime);
-        while(bucketStartTime < DateTime.fromMillis(endDateTime)) {
-            const bucket = {timestamp: bucketStartTime.toMillis(), count: 0};
-            buckets.set(Math.floor(bucketStartTime.toMillis() / aggregationGranularity), bucket);
-            bucketStartTime = bucketStartTime.plus(aggregationGranularity);
-        }
-
-        [...rawFileVersionData, ...rawNetworkActivityData].forEach((activity: any) => {
-            const versionBinTimestamp = Math.floor(activity.timestamp / aggregationGranularity);
-            const bin = buckets.get(versionBinTimestamp);
-            if(!bin) return;
-            bin.count++;
-            buckets.set(versionBinTimestamp, bin)
-        });
-
-        setDataBucketsMap(buckets);
-    }, [aggregationGranularity, endDateTime, startDateTime, rawFileVersionData, rawNetworkActivityData]);
-
 
     const handleBrushChange = (domain: Bounds | null) => {
         if (!domain) return;
         const { x0, x1 } = domain;
 
-        // identify all buckets that are within current brushed borders
         const tempBrushedDataBuckets = new Map();
+        const brushStartHash = Math.floor(x0 / aggregationGranularity);
+        const brushEndHash = Math.floor(x1 / aggregationGranularity);
         dataBucketsMap.forEach((dataBucket, key) => {
-            if(dataBucket.timestamp > x0 && dataBucket.timestamp < x1) tempBrushedDataBuckets.set(key, {timestamp: dataBucket.timestamp, count: 0});
+            if( key >= brushStartHash && key <= brushEndHash ) {
+                const tmpBucket = {
+                    id: key,
+                    timestamp: dataBucket.timestamp,
+                    networkActivity: [],
+                    fileVersion: [],
+                }
+                tmpBucket.networkActivity = dataBucket.networkActivity.filter((activity: any) => activity.timestamp >= x0 && activity.timestamp <= x1)
+                tmpBucket.fileVersion = dataBucket.fileVersion.filter((version: any) => version.timestamp >= x0 && version.timestamp <= x1);
+                tempBrushedDataBuckets.set(key, tmpBucket);
+            } 
         });
 
-        // identify all activities that are within current brushed borders
-        // and add them to the respective data bucket from above
-        [...rawFileVersionData, ...rawNetworkActivityData].forEach((activity: FileVersion | NetworkActivity) => {
-            if(activity.timestamp > x0 && activity.timestamp < x1) {
-                const versionBinTimestamp = Math.floor(activity.timestamp / aggregationGranularity);
-                const bin = tempBrushedDataBuckets.get(versionBinTimestamp);
-                if(!bin) return;
-                bin.count++;
-                tempBrushedDataBuckets.set(versionBinTimestamp, bin);
-            }
-        });
-        setBrushedDataBucketsMap(tempBrushedDataBuckets);
-        dispatch(setBrushBoundaries({startTimestamp: x0, endTimeStamp: x1}));
+        const buckets = Array.from(tempBrushedDataBuckets).map((d: any) => d[1])
+        setBrushedDataBuckets(buckets);
+        dispatch(setBrush({startTimestamp: x0, endTimeStamp: x1, buckets: buckets}));
     };
 
     const handleBrushReset = () => {
         if(brushRef?.current) brushRef.current.reset();
         setBrushed(false);
-        dispatch(setBrushBoundaries({startTimestamp: startDateTime, endTimeStamp: endDateTime}));
-        setBrushedDataBucketsMap(new Map());
+        dispatch(setBrush({startTimestamp: startDateTime, endTimeStamp: endDateTime, buckets: dataBuckets}));
+        setBrushedDataBuckets([]);
     }
 
     //HTML
@@ -145,7 +123,7 @@ const EventTimeline = ({
             <Group left={margin.left} top={margin.top}>
                 {dataBuckets.map(d => {
                     const barX = xBandScale(d.timestamp) || 0;
-                    const barY = yScale(d.count);
+                    const barY = yScale([...d.networkActivity, ...d.fileVersion].length);
                     const barWidth = xBandScale.bandwidth();
                     const barHeight = yMax - barY < 0 ? 0 : (d.count === 0 ? 0 : yMax - barY);
                     const color = theme.palette.primary.light;
@@ -163,7 +141,7 @@ const EventTimeline = ({
                 })}
                  {brushedDataBuckets.map(d => {
                     const barX = xBandScale(d.timestamp) || 0;
-                    const barY = yScale(d.count);
+                    const barY = yScale([...d.networkActivity, ...d.fileVersion].length);
                     const barWidth = xBandScale.bandwidth();
                     const barHeight = yMax - barY < 0 ? 0 : (d.count === 0 ? 0 : yMax - barY);
                     const color = theme.palette.primary.light;

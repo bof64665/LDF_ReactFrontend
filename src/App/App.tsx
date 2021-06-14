@@ -93,13 +93,6 @@ function App() {
                         <Paper className={classes.rowGraph}>
                             <NetworkChartV3 />
                         </Paper>
-{/*                     <Paper className={clsx(classes.card, classes.rowGraph)}>
-                            <ParentSize>
-                                {({width: visWidth, height: visHeight}) => (
-                                    <NetworkChartV2 width={visWidth} height={visHeight} />
-                                )}
-                            </ParentSize>
-                        </Paper> */}
                     </Grid>
 
                     <Grid item xs={3}>

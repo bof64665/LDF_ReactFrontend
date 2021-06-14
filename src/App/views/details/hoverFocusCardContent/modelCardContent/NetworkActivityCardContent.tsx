@@ -18,14 +18,21 @@ import { DataGrid, GridColDef, GridValueFormatterParams, GridColumnHeaderParams 
 import { DateTime } from 'luxon';
 import HoverFocusCardListItem from '../HoverFocusCardListItem';
 import Transition from './Transition';
+import { useAppSelector } from '../../../../../redux/hooks';
 
 const NetworkActivityCardContent = ({data}: {data: any}) => {
+    const {
+        brushedStartDateTime,
+        brushedEndDateTime
+    } = useAppSelector(state => state.analysisSliceReducer);
+
+    // TODO: for some reason this takes extremly long...
+    const activities = data.activities.filter((activity: any ) => activity.timestamp >= brushedStartDateTime && activity.timestamp <= brushedEndDateTime);
 
     const [open, setOpen] = useState(false);
     const handleClickOpen = () => {
         setOpen(true);
     };
-
     const handleClose = () => {
     setOpen(false);
     };
@@ -75,7 +82,7 @@ const NetworkActivityCardContent = ({data}: {data: any}) => {
                 <ListItem button onClick={handleClickOpen}> 
                         <ListItemText disableTypography primary={
                                 <Typography variant='button' color='secondary'>
-                                    {`${data.activities.length} ${data.activities.length !== 1 ? 'activities' : 'activity'} on this link`}
+                                    {`${activities.length} ${activities.length !== 1 ? 'activities' : 'activity'} on this link`}
                                 </Typography>
                             }/>
                         <ListItemSecondaryAction>
@@ -89,7 +96,7 @@ const NetworkActivityCardContent = ({data}: {data: any}) => {
                 <DialogTitle>Network Packages from <strong>{data.source}</strong> to <strong>{data.target}</strong></DialogTitle>
                 <DialogContent>
                     <div style={{ height: 400, width: '100%' }}>
-                        <DataGrid rows={data.activities} columns={columns} pageSize={5} disableColumnMenu />
+                        <DataGrid rows={activities} columns={columns} pageSize={5} disableColumnMenu />
                     </div>
                 </DialogContent>
                 <DialogActions>

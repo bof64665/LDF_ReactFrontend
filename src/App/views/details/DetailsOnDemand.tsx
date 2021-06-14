@@ -7,7 +7,7 @@ import IconButton from '@material-ui/core/IconButton';
 import Typography from '@material-ui/core/Typography';
 import CloseRounded from '@material-ui/icons/CloseRounded';
 import { useAppDispatch, useAppSelector } from "../../../redux/hooks";
-import { resetHoveredElement, resetFocusedElement } from '../../../redux/analysisSlice';
+import { resetFocusedElement } from '../../../redux/analysisSlice';
 import HoverFocusCardContent from './hoverFocusCardContent/HoverFocusCardContent';
 import EmptyCardContent from './hoverFocusCardContent/emptyCardContent/EmptyCardContent';
 
@@ -25,33 +25,31 @@ const DetailsOnDemand = () => {
     const classes = useStyles();
     const dispatch = useAppDispatch();
     const {
-        focusedElement,
-        hoveredElement
+        focusedElement
     } = useAppSelector(state => state.analysisSliceReducer);
 
     const element = useMemo(() => {
         if (focusedElement.id !== '-1') return focusedElement;
-        if (hoveredElement.id !== '-1') return hoveredElement;
         return -1;
-    }, [focusedElement, hoveredElement]);
+    }, [focusedElement]);
     
     return (
         <Card className={classes.card}>
             <CardHeader 
                 title={
                     <Typography style={{fontWeight: 550, fontSize: '1.2rem'}}>
-                        {element === -1 ? 'Additional Information' : element.id}
+                        {element === -1 ? 'Details' : element.id}
                     </Typography>                  
                 }
                 subheader={
                     <Typography variant='overline'>
-                        {element === -1 ? 'Hover or click an node or link for more information' : element.__typename}
+                        {element === -1 ? 'Select a node or link for details' : element.__typename}
                     </Typography>
                 }
                 action={
                     element !==-1 && (
                         <IconButton 
-                            onClick={() => {dispatch(resetFocusedElement()); dispatch(resetHoveredElement())}} 
+                            onClick={() => dispatch(resetFocusedElement())} 
                             style={{marginTop: '0.7vh'}}
                             aria-label="close"
                         >
@@ -67,7 +65,7 @@ const DetailsOnDemand = () => {
                 )
             }
             {
-                (focusedElement.id !== '-1' || hoveredElement.id !== '-1') && (
+                (focusedElement.id !== '-1') && (
                     <HoverFocusCardContent data={element} />
                 )
             }     

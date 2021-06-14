@@ -93,7 +93,7 @@ const FileVersionCardContent = ({data}: {data: any}) => {
                 <ListItem button onClick={handleClickOpen}> 
                     <ListItemText disableTypography primary={
                             <Typography variant='button' color='secondary'>
-                                {`${data.activities.length} ${data.activities.length !== 1 ? 'activities' : 'activity'} on this link`}
+                                {`${data.versions.length} ${data.versions.length !== 1 ? 'activities' : 'activity'} on this link`}
                             </Typography>
                         }/>
                     <ListItemSecondaryAction>
@@ -107,7 +107,7 @@ const FileVersionCardContent = ({data}: {data: any}) => {
                 <DialogTitle>Versions of <strong>{data.target}</strong> edited by <strong>{data.source.name}</strong></DialogTitle>
                 <DialogContent>
                     <div style={{ height: 400, width: '100%' }}>
-                        <DataGrid rows={data.activities} columns={columns} pageSize={5} disableColumnMenu />
+                        <DataGrid rows={data.versions} columns={columns} pageSize={5} disableColumnMenu />
                     </div>
                 </DialogContent>
                 <DialogActions>

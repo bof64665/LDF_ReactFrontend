@@ -1,14 +1,14 @@
 import React from "react";
-import { setAggregationGranularity } from "../../../../redux/analysisSlice";
-import { useAppDispatch, useAppSelector } from "../../../../redux/hooks";
 import Button from "@material-ui/core/Button";
 import ButtonGroup from "@material-ui/core/ButtonGroup";
 
-const AggregationGranularityOptions = () => {
-    const dispatch = useAppDispatch();
-    const {
-        aggregationGranularity,
-    } = useAppSelector(state => state.analysisSliceReducer);
+const AggregationGranularityOptions: React.FunctionComponent<{
+    currentAggregationGranularity: number,
+    handleGranularityChange(granularity: number): void
+}> = ({
+    currentAggregationGranularity,
+    handleGranularityChange,
+}) => {
 
     const options = [
         {text: '1s', value: 1000},
@@ -23,9 +23,9 @@ const AggregationGranularityOptions = () => {
             {options.map(option => (
                 <Button 
                 key={`granularity-option-${option.text}`}
-                color={aggregationGranularity === option.value ? "secondary" : "default"} 
+                color={currentAggregationGranularity === option.value ? "secondary" : "default"} 
                 variant="contained" 
-                onClick={() => dispatch(setAggregationGranularity(option.value))}>
+                onClick={() => handleGranularityChange(option.value)}>
                     {option.text}
                 </Button>
             ))}

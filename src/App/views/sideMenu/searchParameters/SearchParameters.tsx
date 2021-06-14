@@ -5,8 +5,7 @@ import Grid from '@material-ui/core/Grid';
 import Typography from '@material-ui/core/Typography';
 import Button from "@material-ui/core/Button";
 import { useAppDispatch, useAppSelector } from '../../../../redux/hooks';
-import { setMinDateTime, setMaxDateTime, setStartDateTime, setEndDateTime, initRawData } from '../../../../redux/analysisSlice';
-import AggregationGranularityOptions from './AggregationGranularityOptions';
+import { setMinDateTime, setMaxDateTime, setStartDateTime, setEndDateTime, initRawData, setAggregationGranularity } from '../../../../redux/analysisSlice';
 import SearchDateTimePicker from './SearchDateTimePicker';
 import { cloneDeep } from 'lodash';
 
@@ -28,8 +27,13 @@ const GET_ANALYSIS_DATA = gql`
             files {id path name type hostName}
             fileVersions {id timestamp target source fileSize action}
             networkActivities {id timestamp target source process protocol length}
-        }
-    }
+            dataBuckets {id timestamp count networkActivity {id timestamp source target process length protocol} fileVersion {id timestamp target source fileSize action}}
+            networkActivityLookUp {key value}
+            networkActivityLinks {id source target overallLinkBytes byteProportion activities {id timestamp source target process length protocol}}
+            fileVersionLookUp {key value}
+            fileVersionLinks {id source target overallLinkBytes byteProportion versions {id timestamp source target fileSize action}}
+  }
+}
 `;
 
 const SearchParameters = () => {
@@ -61,12 +65,19 @@ const SearchParameters = () => {
             error: errorAnalysisData, 
             data: analysisData}] = useLazyQuery(GET_ANALYSIS_DATA);
 
-    const handleSearch = (startTime: number, endTime: number) => getAnalysisData({variables: {start: startTime, end: endTime}})
+    const handleSearch = (startTime: number, endTime: number) => {
+        getAnalysisData({variables: {start: startTime, end: endTime}});
+    }
 
     useEffect(() => {
         if(!analysisData || loadingAnalysisData || errorAnalysisData) return;
         dispatch(initRawData(cloneDeep(analysisData.analysisData)));
     }, [analysisData, loadingAnalysisData, errorAnalysisData, dispatch]);
+
+    useEffect(() => {
+        const granularity = (endDateTime - startDateTime) / 100;
+        dispatch(setAggregationGranularity(granularity));
+    }, [dispatch, endDateTime, startDateTime]);
 
     const handleStartDateTimeChange = (date: DateTime) => {
         dispatch(setStartDateTime(date.toMillis()));
@@ -77,6 +88,7 @@ const SearchParameters = () => {
         dispatch(setEndDateTime(date.toMillis()));
         setDateSelectionErr((date.toMillis() <= maxDateTime && date.toMillis() >= startDateTime) ? false : true);
     }
+
     return (
         <Grid container spacing={3} style={{marginBottom: '10px', marginTop: '10px'}}>
             <Grid item xs={1} />
@@ -109,11 +121,13 @@ const SearchParameters = () => {
             </Grid>
             <Grid item xs={1} />
 
-            <Grid item xs={1} />
+{/*             <Grid item xs={1} />
             <Grid item xs={10} >
-                <AggregationGranularityOptions />
+                <AggregationGranularityOptions 
+                currentAggregationGranularity = {granularity}
+                handleGranularityChange = {handleGranularityChange}/>
             </Grid>
-            <Grid item xs={1} />
+            <Grid item xs={1} /> */}
 
             <Grid item xs={1} />
             <Grid item xs={10} >
