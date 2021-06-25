@@ -1,4 +1,4 @@
-# Visual Decision-Support for Live Digital Forensic Investigation
+# Visual Decision-Support for Live Digital Forensic Investigation - Client
 
 This web application is part of a research prototype to provide visual decision-support for Live Digital Forensic investigations. A publication is currently being prepared and will be linked here once it is available.
 
