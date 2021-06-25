@@ -107,6 +107,22 @@ const NetworkChartV3: React.FunctionComponent = () => {
             const removeNodes = graph.current.nodes().filter((node: NodeSingular) => !displayedIds.includes(node.data().id))
             graph.current.remove(removeNodes);
             graph.current.add(elements.filter((element: any) => !graph.current.hasElementWithId(element.id)));
+
+            graph.current
+                .nodes('[label]')
+                .style('background-color', (ele: NodeSingular) => hostColorScale(ele.data().hostName))
+                .style('text-outline-color', (ele: NodeSingular) => hostColorScale(ele.data().hostName))
+                .style('color', (ele: NodeSingular) => ele.data().__typename === 'Endpoint' ? hostColorScale(ele.data().hostName) : '#fff')
+
+            graph.current
+                .elements('$node > node')
+                .style("background-color", '#fff')
+                .style("background-opacity", 1)
+                .style("border-color", (ele: NodeSingular) => hostColorScale(ele.data().id));
+
+            graph.current
+                .elements('node.hover')
+                .style("border-color", (ele: NodeSingular) => hostColorScale(ele.data().hostName))
             
             graph.current
                 .edges('[__typename = "NetworkActivityLink"]')
@@ -127,7 +143,7 @@ const NetworkChartV3: React.FunctionComponent = () => {
             });
             layout.current.run();
         }
-    }, [nodes, links, networkActivityColorScale, fileVersionColorScale]);
+    }, [nodes, links, networkActivityColorScale, fileVersionColorScale, hostColorScale]);
 
     useEffect(() => {
         if(!groupingEnabled) {
@@ -199,7 +215,7 @@ const NetworkChartV3: React.FunctionComponent = () => {
                         {
                             selector: 'node',
                             style: {
-                                "border-width": 4,
+                                "border-width": 2.5,
                                 "border-color": '#fff',
                             }
                         },
@@ -248,9 +264,6 @@ const NetworkChartV3: React.FunctionComponent = () => {
                                "border-color": (ele: NodeSingular) => hostColorScale(ele.data().hostName),
                             }
                         },
-                        //TODO: Die "Endpoint"-Knoten liegen beim Select anscheinend vor den anderen. 
-                        // Sieht man, da sich die border-color der normalen Knoten eindeutig verändert,
-                        // sie aber trotzdem irgendwie überlagert sind
                         {
                             selector: 'node.selected',
                             style: {
@@ -260,7 +273,7 @@ const NetworkChartV3: React.FunctionComponent = () => {
                         {
                             selector: 'node.unselected',
                             style: {
-                                opacity: 0.2,
+                               opacity: 0.2
                             }
                         },
         

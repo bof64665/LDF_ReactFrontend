@@ -252,7 +252,7 @@ export const analysisSlice = createSlice({
             rawData.endpoints.forEach((endpoint: Endpoint) => {
                 types.add(endpoint.hostIp);
             });
-            state.activeHosts = ['10.0.0.3', ...Array.from(types).sort()];
+            state.activeHosts = Array.from(types).sort();
 
             const {nodes, links} = getDisplayedData(state, state.startDateTime, state.endDateTime);
             state.displayedLinks = links;
@@ -312,8 +312,9 @@ function getDisplayedData(state: AnalysisSlice, startTime?: number, endTime?: nu
    rawData.ports.filter((port: Port) => port.processes).forEach((port: Port) => activeData.ports.push(port));
 
    activeData.ports.forEach((port: Port) => {
+        activeNodeIds.add(port.hostName);
        if(port.processes) {
-           port.processes.forEach((pid: string) => {
+            port.processes.forEach((pid: string) => {
                activeData.portLink.push({
                    __typename: 'PortLink',
                    id: `port_${port.id}-${pid}`,
@@ -321,8 +322,6 @@ function getDisplayedData(state: AnalysisSlice, startTime?: number, endTime?: nu
                    source: pid
                });
            });
-       } else {
-           activeNodeIds.add(port.hostName);
        }
    });
 

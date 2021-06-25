@@ -11,9 +11,9 @@ import { useTheme } from '@material-ui/core/styles';
 
 type EndpointStats = {
     endpoint: string,
-    srcBytes: number,
+    receivedBytes: number,
     srcAccesses: number,
-    dstBytes: number,
+    sentBytes: number,
     dstAccesses: number,
 }
 
@@ -53,11 +53,11 @@ export default withTooltip<props, EndpointStats>(({
             displayedNodes
                 .filter((node: any) => node.__typename === 'EndPoint')
                 .forEach((node: any) => {
-                    map.set(node.hostName, {
-                        endpoint: node.hostName,
-                        srcBytes: 0, 
+                    map.set(node.id, {
+                        endpoint: node.id,
+                        receivedBytes: 0, 
                         srcAccesses: 0,
-                        dstBytes: 0,
+                        sentBytes: 0,
                         dstAccesses: 0,
                     });
                 });
@@ -71,18 +71,27 @@ export default withTooltip<props, EndpointStats>(({
                     const src: string = link.source.split(':')[0];
                     const dst: string = link.target.split(':')[0];
 
-                    const srcStats: EndpointStats = endpointsStatsMap.get(src);
+                    const sent: boolean = src === '10.0.0.12' ? true : false;
+
+                    const stats: EndpointStats = sent ? endpointsStatsMap.get(dst) : endpointsStatsMap.get(src);
+                    if (sent) {
+                        stats.sentBytes += link.overallLinkBytes;
+                    } else {
+                        stats.receivedBytes += link.overallLinkBytes;
+                    }
+
+      /*               const srcStats: EndpointStats = endpointsStatsMap.get(src);
                     srcStats.srcAccesses += link.activities.length;
-                    srcStats.srcBytes += link.overallLinkBytes;
+                    srcStats.receivedBytes += link.overallLinkBytes;
                     endpointsStatsMap.set(src, srcStats);
 
                     const dstStats: EndpointStats = endpointsStatsMap.get(dst);
                     dstStats.dstAccesses += link.activities.length;
-                    dstStats.dstBytes += link.overallLinkBytes;
-                    endpointsStatsMap.set(dst, dstStats);
+                    dstStats.sentBytes += link.overallLinkBytes;
+                    endpointsStatsMap.set(dst, dstStats); */
                 });
 
-            endpointsStatsMap.delete('10.0.0.3');
+            endpointsStatsMap.delete('10.0.0.12');
             return Array.from(endpointsStatsMap).map((d: [string, EndpointStats]) => d[1]);
         }, [displayedLinks, endpointsStatsMap]);
 
@@ -94,14 +103,14 @@ export default withTooltip<props, EndpointStats>(({
 
         const xScale = useMemo(() => 
             scaleLinear<number>({
-                domain: [0, max(endpointStats, d => d.srcAccesses)],
+                domain: [0, max(endpointStats, d => d.sentBytes)],
                 range: [margin.left, width-margin.right]
             }), 
         [endpointStats, width]);
 
         const yScale = useMemo(() => 
             scaleLinear<number>({
-                domain: [0, max(endpointStats, d => d.srcBytes)],
+                domain: [0, max(endpointStats, d => d.receivedBytes)],
                 range: [height-margin.bottom, margin.top]
             }),
         [endpointStats, height]);
@@ -113,18 +122,18 @@ export default withTooltip<props, EndpointStats>(({
                     <GridColumns scale={xScale} top={margin.top} width={width-margin.right} height={yMax} stroke="#e0e0e0" strokeDasharray="6 3"/>
                     <AxisBottom top={height-margin.bottom} scale={xScale} numTicks={width > 520 ? 10 : 5} />
                     <text x="410" y="195" fontSize={10}>
-                        Packages [#]
+                        Sent Bytes
                     </text>
                     <AxisLeft left={margin.left} scale={yScale}/>
-                    <text x="-52" y="71" transform="rotate(-90)" fontSize={10}>
-                        Bytes [b]
+                    <text x="-80" y="71" transform="rotate(-90)" fontSize={10}>
+                        Received Bytes
                     </text>
                     <Group>
                         {endpointStats.map((d: EndpointStats, i: number) => (
                             <Circle 
                                 key={`point-src-${d.endpoint}-${i}`}
-                                cx={xScale(d.srcAccesses)}
-                                cy={yScale(d.srcBytes)}
+                                cx={xScale(d.sentBytes)}
+                                cy={yScale(d.receivedBytes)}
                                 r={5}
                                 fill = {tooltipData && tooltipData.endpoint === d.endpoint ? theme.palette.primary.main : theme.palette.primary.light}
                                 stroke = {tooltipData && tooltipData.endpoint === d.endpoint ? theme.palette.success.main : '#fff'}
@@ -132,8 +141,8 @@ export default withTooltip<props, EndpointStats>(({
                                     hideTooltip();
                                 }}
                                 onMouseMove = {() => {
-                                    const top = yScale(d.srcBytes);
-                                    const left = xScale(d.srcAccesses);
+                                    const top = yScale(d.receivedBytes);
+                                    const left = xScale(d.sentBytes);
                                     showTooltip({
                                         tooltipData: d,
                                         tooltipTop: top,
@@ -143,7 +152,7 @@ export default withTooltip<props, EndpointStats>(({
                             />
                         ))}
                     </Group>
-                    <Group>
+                    {/* <Group>
                         {endpointStats.map((d: EndpointStats, i: number) => (
                             <Circle 
                                 key={`point-dst-${d.endpoint}-${i}`}
@@ -166,7 +175,7 @@ export default withTooltip<props, EndpointStats>(({
                                 }}
                             />
                         ))}
-                    </Group>
+                    </Group> */}
                 </svg>
                 {tooltipOpen && tooltipData && (
                     <TooltipWithBounds top={tooltipTop} left={tooltipLeft}>
@@ -174,10 +183,10 @@ export default withTooltip<props, EndpointStats>(({
                         <strong>{tooltipData.endpoint}</strong>
                         </div>
                         <div>
-                        <small>{formatByteString(tooltipData.srcBytes)} <strong>sent</strong> via {tooltipData.srcAccesses} activities</small>
+                        <small>{formatByteString(tooltipData.receivedBytes)} <strong>sent</strong> via {tooltipData.srcAccesses} activities</small>
                         </div>
                         <div>
-                        <small>{formatByteString(tooltipData.dstBytes)} <strong>received</strong> via {tooltipData.dstAccesses} activities</small>
+                        <small>{formatByteString(tooltipData.sentBytes)} <strong>received</strong> via {tooltipData.dstAccesses} activities</small>
                         </div>
                     </TooltipWithBounds>
                 )}

@@ -23,12 +23,12 @@ const SearchDateTimePicker = ({
         style={{ width: '100%' }}
         ampm={false}
         disableFuture={true}
-        format="MMM dd, yyyy - HH:mm"
+        format="MMM dd, yyyy - HH:mm:ss"
         strictCompareDates={true}
         minDate={minDateTime}
-        minDateMessage={`${minMessage} ${minDateTime.toFormat('MMM dd, yyyy - HH:mm')}`}
+        minDateMessage={`${minMessage} ${minDateTime.toFormat('MMM dd, yyyy - HH:mm:ss')}`}
         maxDate={maxDateTime}
-        maxDateMessage={`${maxMessage} ${maxDateTime.toFormat('MMM dd, yyyy - HH:mm')}`}
+        maxDateMessage={`${maxMessage} ${maxDateTime.toFormat('MMM dd, yyyy - HH:mm:ss')}`}
         value={value} 
         onChange={(date: DateTime) => handleDateTimeChange(date)}
     />

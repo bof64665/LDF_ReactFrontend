@@ -23,7 +23,7 @@ function max<Datum>(data: Datum[], value: (d: Datum) => number): number {
     return Math.max(...data.map(value));
   }
 
-const margin = { top: 10, right: 20, bottom: 60, left: 60 };
+const margin = { top: 20, right: 20, bottom: 60, left: 60 };
 
 type props = {
     width: number,
@@ -72,27 +72,26 @@ export default withTooltip<props, FileStats>(({
             return tmp;
         }, [aggregationGranularity, brushedBuckets, dataBuckets]);
 
-        const maxNetwork = useMemo(() => max(data, d => d.network), [data]);
-        const maxFile = useMemo(() => max(data, d => d.file), [data]);
+        const maxData = useMemo(() => max(data, d => d.network + d.file), [data]);
 
         const yScale = useMemo(() => 
             scaleLinear<number>({
-                domain: [0, maxNetwork > maxFile ? maxNetwork : maxFile],
+                domain: [0, maxData],
                 range: [height-margin.bottom, margin.top]
             }), 
-        [maxNetwork, maxFile, height]);
+        [maxData, height]);
 
         const xScale = useMemo(() => 
             scaleBand<number>({
                 range: [margin.left, width-margin.right],
                 domain: data.map((d: any) => d.timestamp),
-                padding: 0.025
+                padding: 0.075
             }),
         [data, width]);
 
         const colorScale = scaleOrdinal<'network' | 'file', string>({
             domain: ['network', 'file'],
-            range: [theme.palette.success.main, theme.palette.error.main],
+            range: [theme.palette.primary.main, theme.palette.secondary.main],
           });
 
         return (
@@ -121,6 +120,7 @@ export default withTooltip<props, FileStats>(({
                                                 height={bar.height > 0 ? bar.height : 0}
                                                 width={bar.width}
                                                 fill={bar.color}
+                                                opacity={0.75}
                                             />
                                         )
                                     )

@@ -13,7 +13,7 @@ import { DateTime } from 'luxon';
 import { useAppDispatch, useAppSelector } from '../../redux/hooks';
 import { setBrush } from '../../redux/analysisSlice';
 
-const margin = {top: 8, left: 50, bottom: 19, right: 10};
+const margin = {top: 8, left: 10, bottom: 19, right: 10};
 const selectedBrushStyle = { fill: '#919191', opacity: 0.5, stroke: 'white' };
 
 const EventTimeline = ({
@@ -126,7 +126,7 @@ const EventTimeline = ({
                     const barY = yScale([...d.networkActivity, ...d.fileVersion].length);
                     const barWidth = xBandScale.bandwidth();
                     const barHeight = yMax - barY < 0 ? 0 : (d.count === 0 ? 0 : yMax - barY);
-                    const color = theme.palette.primary.light;
+                    const color = '#666666';
                     const opacity = brushed ? 0.2 : 1
                     return (
                         <Bar
@@ -144,7 +144,7 @@ const EventTimeline = ({
                     const barY = yScale([...d.networkActivity, ...d.fileVersion].length);
                     const barWidth = xBandScale.bandwidth();
                     const barHeight = yMax - barY < 0 ? 0 : (d.count === 0 ? 0 : yMax - barY);
-                    const color = theme.palette.primary.light;
+                    const color = '#666666';
                     return (
                         <Bar
                             key={`bar-count-${d.timestamp}`}
@@ -167,9 +167,9 @@ const EventTimeline = ({
                     onClick = {handleBrushReset}
                     selectedBoxStyle= {selectedBrushStyle}
                     innerRef={brushRef} />
-                <AxisLeft
+{/*                 <AxisLeft
                     scale={yScale}
-                    numTicks={4} />
+                    numTicks={4} /> */}
                 <AxisBottom
                     top={yMax}
                     scale={xBandScale} 
