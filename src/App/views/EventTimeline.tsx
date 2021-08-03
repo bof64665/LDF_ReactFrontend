@@ -1,7 +1,6 @@
 import {useMemo, useRef, useState} from 'react';
-import { useTheme } from '@material-ui/core/styles';
 import { scaleTime, scaleLinear, scaleBand } from '@visx/scale';
-import {AxisBottom, AxisLeft} from '@visx/axis';
+import {AxisBottom} from '@visx/axis';
 import { Brush } from '@visx/brush';
 import { Group } from '@visx/group';
 import { Bar} from "@visx/shape";
@@ -23,7 +22,6 @@ const EventTimeline = ({
     width: number,
     height: number,
 }) => {
-    const theme = useTheme();
 
     const dispatch = useAppDispatch();
     const {

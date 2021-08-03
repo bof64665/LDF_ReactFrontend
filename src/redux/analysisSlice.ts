@@ -7,6 +7,7 @@ import { NetworkActivity } from '../App/models/NetworkActivity';
 import { Port } from '../App/models/Port';
 import { Process } from '../App/models/Process';
 import { scaleQuantile } from '@visx/scale';
+import { ScaleQuantile } from 'd3-scale';
 
 // Define a type for the slice state
 interface AnalysisSlice {
@@ -35,6 +36,9 @@ interface AnalysisSlice {
 
     displayedNodes: any[],
     displayedLinks: any[],
+
+    hoveredEndpoint: string,
+    hoveredFile: string,
 }
 
 // Define the initial state using that type
@@ -64,6 +68,9 @@ const initialState: AnalysisSlice = {
 
     displayedLinks: [],
     displayedNodes: [],
+
+    hoveredEndpoint: undefined,
+    hoveredFile: undefined,
 }
 
 type ApiData = {
@@ -112,6 +119,11 @@ type LookUps = {
 const lookUpMaps: LookUps = {
     networkActivity: new Map<string, number[]>(),
     fileVersion: new Map<string, number[]>(),
+}
+
+const scales: {fileVersionColorScale: ScaleQuantile<string, never>, networkActivityColorScale: ScaleQuantile<string, never>,} = {
+    fileVersionColorScale: null,
+    networkActivityColorScale: null,
 }
 
 export const analysisSlice = createSlice({
@@ -252,12 +264,50 @@ export const analysisSlice = createSlice({
             rawData.endpoints.forEach((endpoint: Endpoint) => {
                 types.add(endpoint.hostIp);
             });
-            state.activeHosts = Array.from(types).sort();
+            state.activeHosts = Array.from(types).filter((a: string) => a !== '10.0.0.12').sort((a: string, b: string) => {
+                const aArray = a.split('.');
+                const bArray = b.split('.');
+
+                const compareNumbers = (a: number, b: number): number => {
+                    if(a < b) return -1;
+                    if(a === b) return 0;
+                    if(a > b) return 1;
+                }
+
+                if(compareNumbers(parseInt(aArray[0]), parseInt(bArray[0])) !== 0) {
+                    return compareNumbers(parseInt(aArray[0]), parseInt(bArray[0]));
+                } else {
+                    if(compareNumbers(parseInt(aArray[1]), parseInt(bArray[1])) !== 0) {
+                        return compareNumbers(parseInt(aArray[1]), parseInt(bArray[1]))
+                    } else {
+                        if(compareNumbers(parseInt(aArray[2]), parseInt(bArray[2])) !== 0) {
+                            return compareNumbers(parseInt(aArray[2]), parseInt(bArray[2]))
+                        } else {
+                            return compareNumbers(parseInt(aArray[3]), parseInt(bArray[3]))
+                        }
+                    }
+                }
+            });
+            
+            scales.fileVersionColorScale = getLinkQuantileColorScale(state.fileVersionLinkData);
+            scales.networkActivityColorScale = getLinkQuantileColorScale(state.networkActivityLinkData);
 
             const {nodes, links} = getDisplayedData(state, state.startDateTime, state.endDateTime);
             state.displayedLinks = links;
             state.displayedNodes = nodes;
         },
+        setHoveredEndpoint: (state, action: PayloadAction<string>) => {
+            state.hoveredEndpoint = action.payload;
+        },
+        resetHoveredEnpoint: (state) => {
+            state.hoveredEndpoint = undefined;
+        },
+        setHoveredFile: (state, action: PayloadAction<string>) => {
+            state.hoveredFile = action.payload;
+        },
+        resetHoveredFile: (state) => {
+            state.hoveredFile = undefined;
+        }
     },
 })
 
@@ -270,6 +320,10 @@ export const {
     hideNetworkActivityLink,
     setFocusedElement,
     resetFocusedElement,
+    setHoveredEndpoint,
+    resetHoveredEnpoint,
+    setHoveredFile,
+    resetHoveredFile,
     setMinDateTime,
     setMaxDateTime,
     setStartDateTime,
@@ -287,15 +341,26 @@ function getDisplayedData(state: AnalysisSlice, startTime?: number, endTime?: nu
     const startTimeHash = startTime ? Math.floor(startTime / state.aggregationGranularity) : Math.floor(state.startDateTime / state.aggregationGranularity);
     const endTimeHash = endTime ? Math.floor(endTime / state.aggregationGranularity) : Math.floor(state.endDateTime / state.aggregationGranularity);
     
+    activeData.portLink = [];
+
     activeData.fileVersion = [];
-    state.fileVersionLinkData.forEach((link: any) => {
+    state.fileVersionLinkData
+    .filter((link: any) => !state.hiddenLinkTypes.includes(link.__typename))
+    .filter((link: any) => !state.hiddenFileVersionLinks.includes(scales.fileVersionColorScale(link.byteProportion)))
+    .filter((link: any) => lookUpMaps.fileVersion.get(link.id).filter((d: any) => d >= startTimeHash && d <= endTimeHash).length > 0)
+    .forEach((link: any) => {
         if(lookUpMaps.fileVersion.get(link.id).filter((d: any) => d >= startTimeHash && d <= endTimeHash).length > 0) {
             activeData.fileVersion.push(link);
         }
     });
 
     activeData.networkActivity = [];
-    state.networkActivityLinkData.forEach((link: any) => {
+    state.networkActivityLinkData
+    .filter((link: any) => !state.hiddenLinkTypes.includes(link.__typename))
+    .filter((link: any) => !state.hiddenNetworkActivityLinks.includes(scales.networkActivityColorScale(link.byteProportion)))
+    .filter((link: any) => lookUpMaps.networkActivity.get(link.id).filter((d: any) => d >= startTimeHash && d <= endTimeHash).length > 0)
+    .filter((link: any) => !state.hiddenHosts.includes(link.target.split(':')[0]) && !state.hiddenHosts.includes(link.source.split(':')[0]))
+    .forEach((link: any) => {
         if (lookUpMaps.networkActivity.get(link.id).filter((d: any) => d >= startTimeHash && d <= endTimeHash).length > 0) {
             activeData.networkActivity.push(link);
         }
@@ -309,11 +374,9 @@ function getDisplayedData(state: AnalysisSlice, startTime?: number, endTime?: nu
    activeData.files = rawData.files.filter((file: File) => activeNodeIds.has(file.id));
    activeData.ports = rawData.ports.filter((port: Port) => activeNodeIds.has(port.id));
 
-   rawData.ports.filter((port: Port) => port.processes).forEach((port: Port) => activeData.ports.push(port));
-
    activeData.ports.forEach((port: Port) => {
         activeNodeIds.add(port.hostName);
-       if(port.processes) {
+        if(port.processes) {
             port.processes.forEach((pid: string) => {
                activeData.portLink.push({
                    __typename: 'PortLink',
@@ -332,11 +395,12 @@ function getDisplayedData(state: AnalysisSlice, startTime?: number, endTime?: nu
 
    activeData.processes = rawData.processes.filter((process: Process) => activeNodeIds.has(process.id));
    activeData.endpoints = rawData.endpoints.filter((endpoint: Endpoint) => activeNodeIds.has(endpoint.id));
-
+   
     return applyDisplayFilters(state);
 }
 
 function applyDisplayFilters(state: AnalysisSlice): {nodes: any[], links: any[]} {
+
     const displayedNodes = [
         ...activeData.endpoints,
         ...activeData.files, 
@@ -346,17 +410,9 @@ function applyDisplayFilters(state: AnalysisSlice): {nodes: any[], links: any[]}
             .filter(node => !state.hiddenNodeTypes.includes(node.__typename));
 
     const displayedNodeIds = displayedNodes.map((node: any) => node.id);
-    const fileVersionColorScale = getLinkQuantileColorScale(state.fileVersionLinkData);
-    const networkActivityColorScale = getLinkQuantileColorScale(state.networkActivityLinkData);
     
     const displayedLinks = [...activeData.portLink, ...activeData.fileVersion, ...activeData.networkActivity]
         .filter((link: any) => displayedNodeIds.includes(link.source) && displayedNodeIds.includes(link.target))
-        .filter((link: any) => !state.hiddenLinkTypes.includes(link.__typename))
-        .filter((link: any) => {
-            if(link.__typename === 'FileVersionLink') return !state.hiddenFileVersionLinks.includes(fileVersionColorScale(link.byteProportion));
-            if(link.__typename === 'NetworkActivityLink') return !state.hiddenNetworkActivityLinks.includes(networkActivityColorScale(link.byteProportion));
-            return true;
-        });
 
     return {nodes: displayedNodes, links: displayedLinks};
 }

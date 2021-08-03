@@ -41,7 +41,7 @@ const LinkTypeFilter = ({
     } = useAppSelector(state => state.analysisSliceReducer);
 
     const linkTypeScale = scaleOrdinal<string, React.FC | React.ReactNode>({
-        domain: ['NetworkActivity', 'FileVersion'],
+        domain: ['NetworkActivityLink', 'FileVersionLink'],
         range: [
             <path 
                 d={`M 0 0 l ${shapeSize * 2} ${shapeSize * 2}`}
@@ -66,7 +66,7 @@ const LinkTypeFilter = ({
                 const display = hiddenLinkTypes.includes(label.datum);
                 return (
                 <LegendItem 
-                    key={`legend-link-${label.datum}`} 
+                    key={`legend-link-${i}`} 
                     margin='0 0 5px'
                     onClick={() => dispatch(hideLinkType(label.datum)) }
                 >
@@ -83,7 +83,7 @@ const LinkTypeFilter = ({
                         margin: '0 0 0 4px', 
                         color: display ? theme.palette.text.disabled : theme.palette.text.primary}}
                     >
-                        {label.text}
+                        {label.text.slice(0, label.text.indexOf('Link'))}
                     </LegendLabel>
                 </LegendItem>
                 );

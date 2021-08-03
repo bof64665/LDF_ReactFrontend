@@ -99,7 +99,8 @@ const SearchParameters = () => {
 
             <Grid item xs={1} />
             <Grid item xs={10}>
-                <SearchDateTimePicker 
+                <SearchDateTimePicker
+                label={'Start'}
                 minDateTime={DateTime.fromMillis(minDateTime)} 
                 maxDateTime={DateTime.fromMillis(endDateTime)} 
                 value={DateTime.fromMillis(startDateTime)} 
@@ -111,7 +112,8 @@ const SearchParameters = () => {
 
             <Grid item xs={1} />
             <Grid item xs={10}>
-                <SearchDateTimePicker 
+                <SearchDateTimePicker
+                label={'End'}
                 minDateTime={DateTime.fromMillis(startDateTime)}
                 maxDateTime={DateTime.fromMillis(maxDateTime)}
                 value={DateTime.fromMillis(endDateTime)}

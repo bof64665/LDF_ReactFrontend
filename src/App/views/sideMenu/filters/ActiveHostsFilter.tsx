@@ -3,11 +3,10 @@ import { createStyles, makeStyles, Theme, useTheme } from '@material-ui/core/sty
 import Typography from '@material-ui/core/Typography';
 import Grid from '@material-ui/core/Grid';
 import { LegendOrdinal, LegendItem, LegendLabel } from '@visx/legend';
-import { scaleOrdinal } from '@visx/scale';
-import { schemeTableau10 } from 'd3';
 import { hideHost } from '../../../../redux/analysisSlice';
 import { useAppDispatch, useAppSelector } from '../../../../redux/hooks';
-
+import { scaleOrdinal } from '@visx/scale';
+import { schemeTableau10 } from 'd3';
 
 const useStyles = makeStyles((theme: Theme) =>
     createStyles({
@@ -39,27 +38,21 @@ const ActiveHostsFilter = ({
     const theme = useTheme<Theme>();
 
     const dispatch = useAppDispatch();
-    const {
-        hiddenHosts,
-        activeHosts
-    } = useAppSelector(state => state.analysisSliceReducer);
+    const { hiddenHosts, activeHosts } = useAppSelector(state => state.analysisSliceReducer);
 
-    const hostColorScale = useMemo(() => 
-    scaleOrdinal({
-        range: [...schemeTableau10],
-        domain: activeHosts}), [activeHosts]);
+    const hostColorScale = useMemo(() => scaleOrdinal({range: [...schemeTableau10], domain: activeHosts}), [activeHosts]);
 
     return (
         <React.Fragment>
             <Grid item xs={5}>
                 <div className={classes.legend}>
-                    <Typography variant="caption" color="textSecondary" className={classes.legendTitle}>Hosts</Typography>
+                    <Typography variant="caption" color="textSecondary" className={classes.legendTitle}>External Hosts</Typography>
                     <LegendOrdinal scale={hostColorScale} labelFormat={(label: any) => `${label.toUpperCase()}`}>
                         {labels => (
                             <div style={{display: 'flex', flexDirection: 'column', cursor: 'pointer'}}>
                                 {labels.map((label, i) => {
                                     const display = hiddenHosts.includes(label.datum as string);
-                                    if (i % 2 === 1 ) return <div />;
+                                    if (i % 2 === 1) return <div key={`legend-host-${i}`}/>;
                                     return (
                                         <LegendItem
                                             key={`legend-host-${i}`}
@@ -95,7 +88,7 @@ const ActiveHostsFilter = ({
                             <div style={{display: 'flex', flexDirection: 'column', cursor: 'pointer', marginTop: '22.5px'}}>
                             {labels.map((label, i) => {
                                 const display = hiddenHosts.includes(label.datum as string);
-                                if (i % 2 === 0 ) return <div />;
+                                if (i % 2 === 0) return <div key={`legend-host-${i}`}/>;
                                 return (
                                     <LegendItem
                                         key={`legend-host-${i}`}

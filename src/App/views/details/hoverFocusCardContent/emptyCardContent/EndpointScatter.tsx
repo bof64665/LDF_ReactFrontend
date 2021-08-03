@@ -1,13 +1,15 @@
-import { useAppSelector } from '../../../../../redux/hooks';
-import { scaleLinear } from '@visx/scale';
+import { useAppSelector, useAppDispatch } from '../../../../../redux/hooks';
+import { scaleLinear, scaleOrdinal } from '@visx/scale';
 import {AxisBottom, AxisLeft} from '@visx/axis';
 import { Group } from '@visx/group';
 import { GridRows, GridColumns } from '@visx/grid';
-import { Circle } from '@visx/shape';
-import { useMemo, useRef } from 'react';
-import { withTooltip, TooltipWithBounds } from '@visx/tooltip';
+import { Line, Circle } from '@visx/shape';
+import React, { useMemo, useRef } from 'react';
+import { withTooltip, TooltipWithBounds, Tooltip, defaultStyles } from '@visx/tooltip';
 import { WithTooltipProvidedProps } from '@visx/tooltip/lib/enhancers/withTooltip';
-import { useTheme } from '@material-ui/core/styles';
+import { schemeTableau10 } from 'd3';
+import Typography from '@material-ui/core/Typography';
+import { resetHoveredEnpoint, setHoveredEndpoint } from '../../../../../redux/analysisSlice';
 
 type EndpointStats = {
     endpoint: string,
@@ -42,11 +44,13 @@ export default withTooltip<props, EndpointStats>(({
     tooltipTop = 0,
     tooltipLeft = 0}: props & WithTooltipProvidedProps<EndpointStats>) => {
 
-        const theme = useTheme();
-        const { displayedNodes, displayedLinks } = useAppSelector(state => state.analysisSliceReducer);
+        const { displayedNodes, displayedLinks, activeHosts } = useAppSelector(state => state.analysisSliceReducer);
+        const dispatch = useAppDispatch();
         const xMax = width - margin.left - margin.right;
         const yMax = height - margin.top - margin.bottom;
         const svgRef = useRef<SVGSVGElement>(null);
+
+        const hostColorScale = useMemo(() => scaleOrdinal({range: [...schemeTableau10], domain: activeHosts}), [activeHosts]);
 
         const endpointsStatsMap: Map<string, EndpointStats> = useMemo(() => {
             const map = new Map<string, EndpointStats>();
@@ -99,103 +103,123 @@ export default withTooltip<props, EndpointStats>(({
             endpointStats.sort((a: EndpointStats, b: EndpointStats) => a.srcBytes > b.srcBytes ? -1 : 1).slice(0, 5)
         , [endpointStats]); */
 
-        //TODO: Legende!
-
         const xScale = useMemo(() => 
             scaleLinear<number>({
                 domain: [0, max(endpointStats, d => d.sentBytes)],
-                range: [margin.left, width-margin.right]
+                range: [0, xMax]
             }), 
-        [endpointStats, width]);
+        [endpointStats, xMax]);
 
         const yScale = useMemo(() => 
             scaleLinear<number>({
                 domain: [0, max(endpointStats, d => d.receivedBytes)],
-                range: [height-margin.bottom, margin.top]
+                range: [yMax, 0]
             }),
-        [endpointStats, height]);
+        [endpointStats, yMax]);
 
         return (
             <div>
-                <svg width={width} height={height} ref={svgRef}>
-                    <GridRows scale={yScale} left={margin.left} width={xMax} height={yMax} stroke="#e0e0e0" strokeDasharray="6 3" />
-                    <GridColumns scale={xScale} top={margin.top} width={width-margin.right} height={yMax} stroke="#e0e0e0" strokeDasharray="6 3"/>
-                    <AxisBottom top={height-margin.bottom} scale={xScale} numTicks={width > 520 ? 10 : 5} />
-                    <text x="410" y="195" fontSize={10}>
-                        Sent Bytes
-                    </text>
-                    <AxisLeft left={margin.left} scale={yScale}/>
-                    <text x="-80" y="71" transform="rotate(-90)" fontSize={10}>
-                        Received Bytes
-                    </text>
-                    <Group>
-                        {endpointStats.map((d: EndpointStats, i: number) => (
-                            <Circle 
-                                key={`point-src-${d.endpoint}-${i}`}
-                                cx={xScale(d.sentBytes)}
-                                cy={yScale(d.receivedBytes)}
-                                r={5}
-                                fill = {tooltipData && tooltipData.endpoint === d.endpoint ? theme.palette.primary.main : theme.palette.primary.light}
-                                stroke = {tooltipData && tooltipData.endpoint === d.endpoint ? theme.palette.success.main : '#fff'}
-                                onMouseLeave = {() => {
-                                    hideTooltip();
-                                }}
-                                onMouseMove = {() => {
-                                    const top = yScale(d.receivedBytes);
-                                    const left = xScale(d.sentBytes);
-                                    showTooltip({
-                                        tooltipData: d,
-                                        tooltipTop: top,
-                                        tooltipLeft: left,
-                                    });
-                                }}
-                            />
-                        ))}
-                    </Group>
-                    {/* <Group>
-                        {endpointStats.map((d: EndpointStats, i: number) => (
-                            <Circle 
-                                key={`point-dst-${d.endpoint}-${i}`}
-                                cx={xScale(d.dstAccesses)}
-                                cy={yScale(d.dstBytes)}
-                                r = {5}
-                                fill = {tooltipData && tooltipData.endpoint === d.endpoint ? theme.palette.secondary.main : theme.palette.secondary.light}
-                                stroke = {tooltipData && tooltipData.endpoint === d.endpoint ? theme.palette.success.main : '#fff'}
-                                onMouseLeave = {() => {
-                                    hideTooltip();
-                                }}
-                                onMouseMove = {() => {
-                                    const top = yScale(d.dstBytes);
-                                    const left = xScale(d.dstAccesses);
-                                    showTooltip({
-                                        tooltipData: d,
-                                        tooltipTop: top,
-                                        tooltipLeft: left,
-                                    });
-                                }}
-                            />
-                        ))}
-                    </Group> */}
-                </svg>
+                {
+                     endpointStats.length > 0 &&  (
+                        <svg width={width} height={height} ref={svgRef}>
+                            <Group top={margin.top} left={margin.left}>
+                                {tooltipData && (
+                                    <Group>
+                                        <Line
+                                            from={{ x: tooltipLeft, y: 0 }}
+                                            to={{ x: tooltipLeft, y: yMax }}
+                                            stroke="#919191"
+                                            strokeWidth={1}
+                                            pointerEvents="none"
+                                            strokeDasharray="5,2"	/>
+                                        <Line
+                                            from={{ x: 0, y: tooltipTop }}
+                                            to={{ x: xMax, y: tooltipTop }}
+                                            stroke="#919191"
+                                            strokeWidth={1}
+                                            pointerEvents="none"
+                                            strokeDasharray="5,2"	/>
+                                    </Group>
+                                    
+                                )}
+                                <GridRows scale={yScale} width={xMax} height={yMax} stroke="#e0e0e0" strokeDasharray="6 3" />
+                                <GridColumns scale={xScale} width={xMax} height={yMax} stroke="#e0e0e0" strokeDasharray="6 3"/>
+                                <AxisBottom top={yMax} scale={xScale} numTicks={width > 520 ? 10 : 5} />
+                                <text x={xMax - 50} y={yMax - 5} fontSize={10}>
+                                    Sent Bytes
+                                </text>
+                                <AxisLeft scale={yScale} numTicks={5}/>
+                                <text x={-75} y={10} transform="rotate(-90)" fontSize={10}>
+                                    Received Bytes
+                                </text>
+                                <Group>
+                                    {endpointStats.map((d: EndpointStats, i: number) => (
+                                        <Circle 
+                                            key={`point-src-${d.endpoint}-${i}`}
+                                            cx={xScale(d.sentBytes)}
+                                            cy={yScale(d.receivedBytes)}
+                                            r={tooltipData && tooltipData.endpoint === d.endpoint ? 8 : 5}
+                                            opacity = {tooltipData && tooltipData.endpoint === d.endpoint ? 1 : 0.7}
+                                            fill = {hostColorScale(d.endpoint)}
+                                            stroke = {tooltipData && tooltipData.endpoint === d.endpoint ? hostColorScale(d.endpoint) : '#fff'}
+                                            onMouseLeave = {() => {
+                                                dispatch(resetHoveredEnpoint());
+                                                hideTooltip();
+                                            }}
+                                            onMouseMove = {() => {
+                                                dispatch(setHoveredEndpoint(d.endpoint));
+                                                showTooltip({tooltipData: d, tooltipTop: yScale(d.receivedBytes), tooltipLeft: xScale(d.sentBytes)});
+                                            }}
+                                        />
+                                    ))}
+                                </Group>
+                            </Group>
+                        </svg>
+                     )
+                }
+                {
+                     endpointStats.length === 0 &&  (
+                        <Typography variant="caption" display="block" gutterBottom>
+                        No network activities within the selected analysis window.
+                        </Typography>
+                     )
+                }
                 {tooltipOpen && tooltipData && (
-                    <TooltipWithBounds top={tooltipTop} left={tooltipLeft}>
-                        <div style={{ color: '#bebebe' }}>
-                        <strong>{tooltipData.endpoint}</strong>
-                        </div>
-                        <div>
-                        <small>{formatByteString(tooltipData.receivedBytes)} <strong>sent</strong> via {tooltipData.srcAccesses} activities</small>
-                        </div>
-                        <div>
-                        <small>{formatByteString(tooltipData.sentBytes)} <strong>received</strong> via {tooltipData.dstAccesses} activities</small>
-                        </div>
-                    </TooltipWithBounds>
+                    <React.Fragment>
+                        <TooltipWithBounds top={tooltipTop - 35} left={tooltipLeft}>
+                            <div style={{ color: hostColorScale(tooltipData.endpoint) }}>
+                                <small>{tooltipData.endpoint}</small>
+                            </div>
+                        </TooltipWithBounds>
+
+                        <Tooltip
+                            top = { tooltipTop - 10 }
+                            left = { 0 }
+                            style = {{
+                                ...defaultStyles,
+                            }}
+                        >
+                            <small><strong>{tooltipData.receivedBytes}</strong></small>
+                        </Tooltip>
+
+                        <Tooltip
+                            top = { yMax }
+                            left = { tooltipLeft }
+                            style = {{
+                                ...defaultStyles,
+                                transform: 'translateX(+65%)'
+                            }}
+                        >
+                            <small><strong>{tooltipData.sentBytes}</strong></small>
+                        </Tooltip>
+                    </React.Fragment>
                 )}
             </div>
         )
     }
 );
 
-function formatByteString(bytes: number): string {
+/* function formatByteString(bytes: number): string {
     if(bytes / 1000 > 1) {
         if(bytes / 1000000 > 1) {
             if(bytes / 1000000000 > 1) {
@@ -213,4 +237,4 @@ function formatByteString(bytes: number): string {
     } else {
         return `${bytes} B`;
     }
-}
+} */

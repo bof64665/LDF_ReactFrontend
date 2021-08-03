@@ -22,7 +22,7 @@ const AggregationGranularityOptions: React.FunctionComponent<{
         <ButtonGroup size="large" style={{ width: '100%', marginTop: '5px' }}>
             {options.map(option => (
                 <Button 
-                key={`granularity-option-${option.text}`}
+                key={`granularity-option-${option.value}`}
                 color={currentAggregationGranularity === option.value ? "secondary" : "default"} 
                 variant="contained" 
                 onClick={() => handleGranularityChange(option.value)}>

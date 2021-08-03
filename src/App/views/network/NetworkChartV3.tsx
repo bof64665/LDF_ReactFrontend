@@ -1,17 +1,25 @@
 import React, { useEffect, useRef, useMemo } from 'react';
 import fcose from 'cytoscape-fcose';
 import cola from 'cytoscape-cola';
-// import cxtmenu from 'cytoscape-cxtmenu';
+import d3Force from 'cytoscape-d3-force';
 import cytoscape, { AbstractEventObject, EdgeSingular, NodeSingular } from 'cytoscape';
 import { useAppDispatch, useAppSelector } from '../../../redux/hooks';
-import { scaleOrdinal, scaleQuantile } from '@visx/scale';
-import * as d3 from 'd3';
 import { resetFocusedElement, setFocusedElement } from '../../../redux/analysisSlice';
 import "./styles.css";
+import { scaleOrdinal, scaleQuantile } from '@visx/scale';
+import { schemeTableau10 } from 'd3';
 
 cytoscape.use(cola);
 cytoscape.use(fcose);
-// cytoscape.use( cxtmenu );
+cytoscape.use(d3Force);
+
+function getLinkQuantileColorScale(linkData: any[]) {
+    const proportions = linkData.map((link: any) => link.byteProportion);
+    return scaleQuantile({
+        domain: [Math.min(...proportions), Math.max(...proportions)],
+        range: ['#9096f8', '#78f6ef', '#6ce18b', '#f19938', '#eb4d70']
+    });
+}
   
 const NetworkChartV3: React.FunctionComponent = () => {
     const dispatch = useAppDispatch();
@@ -19,34 +27,17 @@ const NetworkChartV3: React.FunctionComponent = () => {
         groupingEnabled,
         displayedNodes,
         displayedLinks,
+        focusedElement,
+        fileVersionLinkData,
+        networkActivityLinkData,
         activeHosts,
-        focusedElement
+        hoveredEndpoint,
+        hoveredFile,
     } = useAppSelector( state => state.analysisSliceReducer );
 
     const container = useRef<HTMLDivElement>(null);
-    const graph = useRef<cytoscape.Core>();
-    const layout = useRef<cytoscape.Layouts>();
-
-    const hostColorScale = useMemo(() => 
-    scaleOrdinal({
-        range: [...d3.schemeTableau10],
-        domain: activeHosts}), [activeHosts]);
-
-    const fileVersionColorScale = useMemo(() => {
-        const proportions = displayedLinks.filter(link => link.__typename === 'FileVersionLink').map((link: any) => link.byteProportion)
-        return scaleQuantile({
-            domain: [Math.min(...proportions), Math.max(...proportions)],
-            range: ['#9096f8', '#78f6ef', '#6ce18b', '#f19938', '#eb4d70']
-        });
-    }, [displayedLinks]);
-
-    const networkActivityColorScale = useMemo(() => {
-        const proportions = displayedLinks.filter(link => link.__typename === 'NetworkActivityLink').map((link: any) => link.byteProportion)
-        return scaleQuantile({
-            domain: [Math.min(...proportions), Math.max(...proportions)],
-            range: ['#9096f8', '#78f6ef', '#6ce18b', '#f19938', '#eb4d70']
-        });
-    }, [displayedLinks]);
+    const graph = useRef<any>();
+    const layout = useRef<any>();
 
     const nodes = useMemo(() => {
         const tmpNodes: { data: any }[] = [];
@@ -83,7 +74,6 @@ const NetworkChartV3: React.FunctionComponent = () => {
         });
         return tmpNodes
     }, [displayedNodes, groupingEnabled]);
-
     const links = useMemo(() => {
         const tmpLinks: { data: any }[]= []
         displayedLinks.forEach((link: any) => {
@@ -94,62 +84,121 @@ const NetworkChartV3: React.FunctionComponent = () => {
         return tmpLinks;
     }, [displayedLinks]);
 
+    const d3ForceLayout = useMemo(() => {
+        return {
+            name: 'd3-force',
+            animate: true,
+            fixedAfterDragging: false,
+            linkId: function id(d) {
+            return d.id;
+            },
+            linkDistance: 80,
+            manyBodyStrength: -300,
+            ready: function(){},
+            stop: function(){},
+            tick: function(progress) {
+                //console.log('progress - ', progress);
+            },
+            randomize: false,
+            infinite: true
+        }
+    }, []);
+    const colaLayout = useMemo(() => {
+        return {
+            name: 'cola',
+            maxSimulationTime: 10000,
+
+        };
+    }, []);
+
+    const fileVersionColorScale = useMemo(() => getLinkQuantileColorScale(fileVersionLinkData), [fileVersionLinkData]);
+    const networkActivityColorScale = useMemo(() => getLinkQuantileColorScale(networkActivityLinkData), [networkActivityLinkData]);
+    const hostColorScale = useMemo(() => scaleOrdinal({range: [...schemeTableau10], domain: activeHosts}), [activeHosts]);
+
+    const removedElements = useRef<cytoscape.Collection>(null);
+    const groupingStatus = useRef<boolean>(groupingEnabled);
+
     useEffect(() => {
-        if (graph.current) {
+        if(!graph.current) return;
 
-            const elements: cytoscape.ElementDefinition[] = [...nodes, ...links];
+        if(layout.current) layout.current.stop();
 
-            if(layout.current) {
-                layout.current.stop();
+        const elementIdsToDisplay = [...links, ...nodes].map((test: any) => test.data.id);
+
+        if(groupingStatus.current !== groupingEnabled) {
+            removedElements.current = null;
+            graph.current.elements().remove();
+            graph.current.add(nodes.filter((node: any) => !graph.current.hasElementWithId(node.id)));
+            graph.current.add(links.filter((link: any) => !graph.current.hasElementWithId(link.id)));
+            groupingStatus.current = groupingEnabled;
+        } else {
+            if(graph.current.elements().length === 0) {
+                if(removedElements.current && removedElements.current.length > 0) {
+                    removedElements.current.restore();
+                } else {
+                    graph.current.add(nodes.filter((node: any) => !graph.current.hasElementWithId(node.id)));
+                    graph.current.add(links.filter((link: any) => !graph.current.hasElementWithId(link.id)));
+                }
             }
+    
+            if(removedElements.current && removedElements.current.length > 0) {
+                elementIdsToDisplay.forEach((id: string) => {
+                    removedElements.current.nodes().getElementById(id).restore();
+                });
+                elementIdsToDisplay.forEach((id: string) => {
+                    removedElements.current.edges().getElementById(id).restore();
+                });
+                removedElements.current =  removedElements.current.union(graph.current.elements().filter((ele: cytoscape.EdgeSingular) => !elementIdsToDisplay.includes(ele.data().id)).remove());
+            } else {
+                removedElements.current =  graph.current.elements().filter((ele: cytoscape.EdgeSingular) => !elementIdsToDisplay.includes(ele.data().id)).remove();
+            }
+        }
 
-            const displayedIds = elements.map((element: any) => element.id);
-            const removeNodes = graph.current.nodes().filter((node: NodeSingular) => !displayedIds.includes(node.data().id))
-            graph.current.remove(removeNodes);
-            graph.current.add(elements.filter((element: any) => !graph.current.hasElementWithId(element.id)));
+        layout.current = graph.current.elements().makeLayout(d3ForceLayout);
+        layout.current.run();
+    }, [nodes, links, d3ForceLayout, colaLayout, groupingEnabled]);
 
-            graph.current
-                .nodes('[label]')
-                .style('background-color', (ele: NodeSingular) => hostColorScale(ele.data().hostName))
-                .style('text-outline-color', (ele: NodeSingular) => hostColorScale(ele.data().hostName))
+    useEffect(() => {
+
+        const getColor = (ele: NodeSingular): string => {
+            if (ele.data().__typename === 'Endpoint') { return '#fff'; }
+            if(ele.data().hostName !== '10.0.0.12') { return hostColorScale(ele.data().hostName) } 
+            return '#858585';
+        }
+
+        if (!graph.current) return;
+
+        graph.current.style()
+            .selector('node[label]')
+                .style('background-color', (ele: NodeSingular) => getColor(ele))
+                .style('text-outline-color', (ele: NodeSingular) => getColor(ele))
                 .style('color', (ele: NodeSingular) => ele.data().__typename === 'Endpoint' ? hostColorScale(ele.data().hostName) : '#fff')
 
-            graph.current
-                .elements('$node > node')
-                .style("background-color", '#fff')
-                .style("background-opacity", 1)
-                .style("border-color", (ele: NodeSingular) => hostColorScale(ele.data().id));
-
-            graph.current
-                .elements('node.hover')
-                .style("border-color", (ele: NodeSingular) => hostColorScale(ele.data().hostName))
+            .selector('$node > node')
+                .style("border-color", (ele: NodeSingular) => ele.data().hostName !== '10.0.0.12' ? hostColorScale(ele.data().hostName) : '#858585')
             
-            graph.current
-                .edges('[__typename = "NetworkActivityLink"]')
+            .selector('node.hover')
+                .style("border-color", (ele: NodeSingular) => ele.data().hostName !== '10.0.0.12' ? hostColorScale(ele.data().hostName) : '#858585')
+
+            .selector('node.selected')
+                .style("border-color", (ele: NodeSingular) => ele.data().hostName !== '10.0.0.12' ? hostColorScale(ele.data().hostName) : '#858585')
+
+            .selector('edge[__typename = "NetworkActivityLink"]')
                 .style('line-color', (ele: EdgeSingular) => networkActivityColorScale(ele.data().byteProportion))
-                .style('target-arrow-color', (ele: EdgeSingular) => networkActivityColorScale(ele.data().byteProportion));
+                .style('target-arrow-color', (ele: EdgeSingular) => networkActivityColorScale(ele.data().byteProportion))
 
-            graph.current
-                .edges('[__typename = "FileVersionLink"]')
+            .selector('edge[__typename = "FileVersionLink"]')
                 .style('line-color', (ele: EdgeSingular) => fileVersionColorScale(ele.data().byteProportion))
-                .style('target-arrow-color', (ele: EdgeSingular) => fileVersionColorScale(ele.data().byteProportion));
+                .style('target-arrow-color', (ele: EdgeSingular) => fileVersionColorScale(ele.data().byteProportion))
 
-            graph.current
-                .edges('.hover')
-                .style('line-color', '#bebebe')
-
-            layout.current = graph.current.elements().makeLayout({
-                name: 'fcose',
-            });
-            layout.current.run();
-        }
-    }, [nodes, links, networkActivityColorScale, fileVersionColorScale, hostColorScale]);
+            .update();
+    }, [fileVersionColorScale, hostColorScale, networkActivityColorScale])
 
     useEffect(() => {
         if(!groupingEnabled) {
             graph.current
                 .nodes()
-                .style('background-color', (ele: NodeSingular) => hostColorScale(ele.data().hostName))
+                .style('background-color', (ele: NodeSingular) => ele.data().hostName !== '10.0.0.12' ? hostColorScale(ele.data().hostName) : '#858585')
         }
     }, [groupingEnabled, hostColorScale]);
 
@@ -190,7 +239,33 @@ const NetworkChartV3: React.FunctionComponent = () => {
                 }
             });
         }
-    }, [dispatch, displayedLinks, displayedNodes, focusedElement])
+    }, [dispatch, displayedLinks, displayedNodes, focusedElement]);
+
+    useEffect(() => {
+        if (!graph.current) return;
+
+        if(hoveredEndpoint) {
+            graph.current.nodes().filter(`[hostName = "${hoveredEndpoint}"]`).addClass('selected');
+            graph.current.nodes().filter(`[hostName != "${hoveredEndpoint}"]`).addClass('unselected');
+            graph.current.edges().addClass('unselected');
+        } else {
+            graph.current.elements().removeClass('selected unselected');
+        }
+        
+    }, [hoveredEndpoint]);
+
+    useEffect(() => {
+        if (!graph.current) return;
+
+        if(hoveredFile) {
+            graph.current.nodes().$id(hoveredFile).addClass('selected');
+            graph.current.nodes().filter(`[id != "${hoveredFile}"]`).addClass('unselected');
+            graph.current.edges().addClass('unselected');
+        } else {
+            graph.current.elements().removeClass('selected unselected');
+        }
+        
+    }, [hoveredFile]);
 
     useEffect(() => {
         if (!container.current) {
@@ -200,16 +275,11 @@ const NetworkChartV3: React.FunctionComponent = () => {
             if (!graph.current) {
                 
                 graph.current = cytoscape({
+                    layout: d3ForceLayout,
                     container: container.current,
-
-                    autounselectify: true,
-                    
+                    autounselectify: true,                   
                     boxSelectionEnabled: true,
-        
-                    layout: {
-                        name: "fcose",
-                    },
-        
+                    wheelSensitivity: 0.1,
                     style:      
                     [
                         {
@@ -223,9 +293,6 @@ const NetworkChartV3: React.FunctionComponent = () => {
                             selector: 'node[label]',
                             style: {
                                 'label': 'data(label)',
-                                'background-color': (ele: NodeSingular) => hostColorScale(ele.data().hostName),
-                                'text-outline-color': (ele: NodeSingular) => hostColorScale(ele.data().hostName),
-                                'color': (ele: NodeSingular) => ele.data().__typename === 'Endpoint' ? hostColorScale(ele.data().hostName) : '#fff',
                                 'text-outline-width': (ele: NodeSingular) => ele.data().__typename === 'Endpoint' ? 0 : 1,
                                 'text-valign': (ele: NodeSingular) => ele.data().__typename === 'Endpoint' ? 'top' : 'center',
                                 'text-halign': 'center',
@@ -255,20 +322,7 @@ const NetworkChartV3: React.FunctionComponent = () => {
                             style: {
                                 "background-color": '#fff',
                                 "background-opacity": 1,
-                                "border-color": (ele: NodeSingular) => hostColorScale(ele.data().id),
                             }
-                        },
-                        {
-                            selector: 'node.hover',
-                            style: {
-                               "border-color": (ele: NodeSingular) => hostColorScale(ele.data().hostName),
-                            }
-                        },
-                        {
-                            selector: 'node.selected',
-                            style: {
-                                "border-color": (ele: NodeSingular) => hostColorScale(ele.data().hostName),
-                            },
                         },
                         {
                             selector: 'node.unselected',
@@ -299,7 +353,6 @@ const NetworkChartV3: React.FunctionComponent = () => {
                             style: {
                                 'curve-style': 'bezier',
                                 'target-arrow-shape': 'triangle',
-                                // 'label': (ele: EdgeSingular) => `${(ele.data().byteProportion * 100).toFixed(2)}%`,
                             }
                         },
                         {
@@ -330,8 +383,6 @@ const NetworkChartV3: React.FunctionComponent = () => {
                             }
                         }
                     ],
-        
-                    elements: [...nodes, ...links]
                 });
             }
 
@@ -341,25 +392,13 @@ const NetworkChartV3: React.FunctionComponent = () => {
             graph.current.on('mouseover', 'edge', (e: any) => e.target.addClass('hover'));
             graph.current.on('mouseout', 'edge', (e: any) => e.target.removeClass('hover'));
 
-            /* (graph.current as any).cxtmenu({
-                selector: 'node',
-
-                commands: [
-                    {
-                        content: 'Focus',
-                        select: function(ele){
-                            console.log( ele.position() );
-                        }
-                    }
-                ]
-            }) */
         } catch (error) {
             console.error(error);
         }
         return () => {
             // graph.current && graph.current.destroy();
         }
-    }, [])
+    }, [d3ForceLayout])
 
     return(
        <div id="cy" className="graph" ref={container} style={{ height: '100%' }}/>

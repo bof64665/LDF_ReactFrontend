@@ -2,6 +2,7 @@ import { DateTimePicker } from '@material-ui/pickers';
 import { DateTime } from 'luxon';
 
 const SearchDateTimePicker = ({
+    label,
     minDateTime,
     maxDateTime,
     value,
@@ -9,6 +10,7 @@ const SearchDateTimePicker = ({
     maxMessage,
     handleDateTimeChange
 }: {
+    label: string,
     minDateTime: DateTime,
     maxDateTime: DateTime,
     value: DateTime,
@@ -17,7 +19,7 @@ const SearchDateTimePicker = ({
     handleDateTimeChange: (date: DateTime) => void
 }) => (
     <DateTimePicker 
-        label="Start" 
+        label={label} 
         inputVariant="standard"
         variant="inline"
         style={{ width: '100%' }}

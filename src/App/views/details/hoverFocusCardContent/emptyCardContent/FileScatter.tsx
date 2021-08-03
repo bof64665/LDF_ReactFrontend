@@ -1,15 +1,18 @@
-import { useAppSelector } from '../../../../../redux/hooks';
+import { useAppSelector, useAppDispatch } from '../../../../../redux/hooks';
 import { scaleLinear } from '@visx/scale';
 import {AxisBottom, AxisLeft} from '@visx/axis';
 import { Group } from '@visx/group';
 import { GridRows, GridColumns } from '@visx/grid';
-import { Circle } from '@visx/shape';
-import { useMemo, useRef } from 'react';
-import { withTooltip, TooltipWithBounds } from '@visx/tooltip';
+import { Circle, Line } from '@visx/shape';
+import React, { useMemo, useRef } from 'react';
+import { withTooltip, TooltipWithBounds, Tooltip, defaultStyles } from '@visx/tooltip';
 import { WithTooltipProvidedProps } from '@visx/tooltip/lib/enhancers/withTooltip';
 import { useTheme } from '@material-ui/core/styles';
+import Typography from '@material-ui/core/Typography';
+import { resetHoveredFile, setHoveredFile } from '../../../../../redux/analysisSlice';
 
 type FileStats = {
+    id: string,
     file: string,
     bytes: number,
     accesses: number,
@@ -18,10 +21,6 @@ type FileStats = {
 function max<Datum>(data: Datum[], value: (d: Datum) => number): number {
     return Math.max(...data.map(value));
   }
-  
-/* function min<Datum>(data: Datum[], value: (d: Datum) => number): number {
-    return Math.min(...data.map(value));
-} */
 
 const margin = { top: 10, right: 20, bottom: 60, left: 60 };
 
@@ -41,6 +40,7 @@ export default withTooltip<props, FileStats>(({
     tooltipLeft = 0}: props & WithTooltipProvidedProps<FileStats>) => {
 
         const theme = useTheme();
+        const dispatch = useAppDispatch();
         const { displayedNodes, displayedLinks } = useAppSelector(state => state.analysisSliceReducer);
         const xMax = width - margin.left - margin.right;
         const yMax = height - margin.top - margin.bottom;
@@ -52,6 +52,7 @@ export default withTooltip<props, FileStats>(({
                 .filter((node: any) => node.__typename === 'File')
                 .forEach((node: any) => {
                     map.set(node.path, {
+                        id: node.id,
                         file: node.name,
                         bytes: 0, 
                         accesses: 0,
@@ -72,78 +73,121 @@ export default withTooltip<props, FileStats>(({
             return Array.from(fileStatsMap).map((d: [string, FileStats]) => d[1]);
         }, [displayedLinks, fileStatsMap]);
 
-    /*     const top5EndpointsBySrcBytes: EndpointStats[] = useMemo(() => 
-            endpointStats.sort((a: EndpointStats, b: EndpointStats) => a.srcBytes > b.srcBytes ? -1 : 1).slice(0, 5)
-        , [endpointStats]); */
-
         const xScale = useMemo(() => 
             scaleLinear<number>({
                 domain: [0, max(fileStats, d => d.accesses)],
-                range: [margin.left, width-margin.right]
+                range: [0, xMax]
             }), 
-        [fileStats, width]);
+        [fileStats, xMax]);
 
         const yScale = useMemo(() => 
             scaleLinear<number>({
                 domain: [0, max(fileStats, d => d.bytes)],
-                range: [height-margin.bottom, margin.top]
+                range: [yMax, 0]
             }),
-        [fileStats, height]);
+        [fileStats, yMax]);
 
         return (
             <div>
-                <svg width={width} height={height} ref={svgRef}>
-                    <GridRows scale={yScale} left={margin.left} width={xMax} height={yMax} stroke="#e0e0e0" strokeDasharray="6 3" />
-                    <GridColumns scale={xScale} top={margin.top} width={width-margin.right} height={yMax} stroke="#e0e0e0" strokeDasharray="6 3"/>
-                    <AxisBottom top={height-margin.bottom} scale={xScale} numTicks={width > 520 ? 10 : 5} />
-                    <text x="410" y="195" fontSize={10}>
-                        Versions [#]
-                    </text>
-                    <AxisLeft left={margin.left} scale={yScale}/>
-                    <text x="-52" y="71" transform="rotate(-90)" fontSize={10}>
-                        Bytes [b]
-                    </text>
-                    <Group>
-                        {fileStats.map((d: FileStats, i: number) => (
-                            <Circle 
-                                key={`point-dst-${d.file}-${i}`}
-                                cx={xScale(d.accesses)}
-                                cy={yScale(d.bytes)}
-                                r = {5}
-                                fill = {tooltipData && tooltipData.file === d.file ? theme.palette.secondary.main : theme.palette.secondary.light}
-                                stroke = {tooltipData && tooltipData.file === d.file ? theme.palette.success.main : '#fff'}
-                                onMouseLeave = {() => {
-                                    hideTooltip();
-                                }}
-                                onMouseMove = {() => {
-                                    const top = yScale(d.bytes);
-                                    const left = xScale(d.accesses);
-                                    showTooltip({
-                                        tooltipData: d,
-                                        tooltipTop: top,
-                                        tooltipLeft: left,
-                                    });
-                                }}
-                            />
-                        ))}
-                    </Group>
-                </svg>
+                { 
+                    fileStats.length > 0 && (
+                        <svg width={width} height={height} ref={svgRef}>
+                            <Group left={margin.left} top={margin.top}>
+                                {tooltipData && (
+                                    <Group>
+                                        <Line
+                                            from={{ x: tooltipLeft, y: 0 }}
+                                            to={{ x: tooltipLeft, y: yMax }}
+                                            stroke="#919191"
+                                            strokeWidth={1}
+                                            pointerEvents="none"
+                                            strokeDasharray="5,2"	/>
+                                        <Line
+                                            from={{ x: 0, y: tooltipTop }}
+                                            to={{ x: xMax, y: tooltipTop }}
+                                            stroke="#919191"
+                                            strokeWidth={1}
+                                            pointerEvents="none"
+                                            strokeDasharray="5,2"	/>
+                                    </Group>
+                                    
+                                )}
+                                <GridRows scale={yScale} width={xMax} height={yMax} stroke="#e0e0e0" strokeDasharray="6 3" />
+                                <GridColumns scale={xScale} width={width-margin.right} height={yMax} stroke="#e0e0e0" strokeDasharray="6 3"/>
+                                <AxisBottom top={yMax} scale={xScale} numTicks={width > 520 ? 10 : 5} />
+                                <text x={xMax - 50} y={yMax - 5} fontSize={10}>
+                                    Versions [#]
+                                </text>
+                                <AxisLeft scale={yScale} numTicks={5}/>
+                                <text x={-40} y={10} transform="rotate(-90)" fontSize={10}>
+                                    Bytes [b]
+                                </text>
+                                <Group>
+                                    {fileStats.map((d: FileStats, i: number) => (
+                                        <Circle 
+                                            key={`point-dst-${d.file}-${i}`}
+                                            cx={xScale(d.accesses)}
+                                            cy={yScale(d.bytes)}
+                                            r={tooltipData && tooltipData.file === d.file ? 8 : 5}
+                                            fill = {tooltipData && tooltipData.file === d.file ? theme.palette.secondary.main : theme.palette.secondary.light}
+                                            stroke = {tooltipData && tooltipData.file === d.file ? theme.palette.secondary.main : '#fff'}
+                                            onMouseLeave = {() => {
+                                                dispatch(resetHoveredFile());
+                                                hideTooltip();
+                                            }}
+                                            onMouseMove = {() => {
+                                                dispatch(setHoveredFile(d.id));
+                                                showTooltip({tooltipData: d, tooltipTop: yScale(d.bytes), tooltipLeft: xScale(d.accesses),
+                                                });
+                                            }}
+                                        />
+                                    ))}
+                                </Group>
+                            </Group>
+                        </svg>
+                    )
+                }
+                {
+                     fileStats.length === 0 &&  (
+                        <Typography variant="caption" display="block" gutterBottom>
+                        No file versions within the selected analysis window.
+                        </Typography>
+                     )
+                }
                 {tooltipOpen && tooltipData && (
-                    <TooltipWithBounds top={tooltipTop} left={tooltipLeft}>
-                        <div style={{ color: '#bebebe' }}>
-                        <strong>{tooltipData.file}</strong>
-                        </div>
-                        <div>
-                        <small>{formatByteString(tooltipData.bytes)} via {tooltipData.accesses} version</small>
-                        </div>
-                    </TooltipWithBounds>
+                    <React.Fragment>
+                        <TooltipWithBounds top={tooltipTop - 35} left={tooltipLeft}>
+                            <small>{tooltipData.file}</small>
+                        </TooltipWithBounds>
+
+                        <Tooltip
+                            top = { tooltipTop - 10 }
+                            left = { 0 }
+                            style = {{
+                                ...defaultStyles,
+                            }}
+                        >
+                            <small><strong>{(tooltipData.bytes)}</strong></small>
+                        </Tooltip>
+
+                        <Tooltip
+                            top = { yMax }
+                            left = { tooltipLeft }
+                            style = {{
+                                ...defaultStyles,
+                                transform: 'translateX(+25%)'
+                            }}
+                        >
+                            <small><strong>{`${tooltipData.accesses} ${tooltipData.accesses === 1 ? 'version' : 'versions'}`}</strong></small>
+                        </Tooltip>
+                    </React.Fragment>
                 )}
             </div>
         )
     }
 );
 
-function formatByteString(bytes: number): string {
+/* function formatByteString(bytes: number): string {
     if(bytes / 1000 > 1) {
         if(bytes / 1000000 > 1) {
             if(bytes / 1000000000 > 1) {
@@ -161,4 +205,4 @@ function formatByteString(bytes: number): string {
     } else {
         return `${bytes} B`;
     }
-}
+} */

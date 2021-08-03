@@ -31,6 +31,7 @@
     "cytoscape": "^3.19.0",
     "cytoscape-cola": "^2.4.0",
     "cytoscape-cxtmenu": "^3.4.0",
+    "cytoscape-d3-force": "^1.1.4",
     "cytoscape-fcose": "^2.0.0",
     "cytoscape-navigator": "^2.0.1",
     "d3": "^6.7.0",

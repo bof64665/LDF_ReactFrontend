@@ -46,7 +46,7 @@ const useStyles = makeStyles((theme: Theme) =>
             height: '17vh'
         },
         rowGraph: {
-            height: '69vh',
+            height: '70vh',
         },
     }),
 );

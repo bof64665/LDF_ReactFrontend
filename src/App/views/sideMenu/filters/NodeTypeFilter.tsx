@@ -77,7 +77,7 @@ const NodeTypeFilter = ({
                 const display = hiddenNodeTypes.includes(label.datum);
                 return (
                 <LegendItem 
-                    key={`legend-node-${label.datum}`} 
+                    key={`legend-node-${i}`} 
                     margin='0 0 5px'
                     onClick={() => dispatch(hideNodeType(label.datum)) }
                 >
