@@ -14,6 +14,7 @@ import NetworkChartV3 from "./views/network/NetworkChartV3";
 import { useAppSelector } from '../redux/hooks';
 import SideMenu from './views/sideMenu/SideMenu';
 import DetailsOnDemand from './views/details/DetailsOnDemand';
+import React from 'react';
 
 const useStyles = makeStyles((theme: Theme) =>
     createStyles({
@@ -53,6 +54,7 @@ const useStyles = makeStyles((theme: Theme) =>
 
 function App() {
     const {
+        dataBuckets,
         brushedStartDateTime,
         brushedEndDateTime
     } = useAppSelector(state => state.analysisSliceReducer);
@@ -77,21 +79,41 @@ function App() {
                 <Grid container className={clsx(classes.container)} spacing={3}>
                     <Grid item xs={12}>
                         <Paper variant="outlined" className={clsx(classes.card, classes.rowTimeline)}>
-                            <Grid item xs={12}>
-                                <Typography style={{fontSize: '0.8rem'}}>
-                                    Current selection: {`${DateTime.fromMillis(brushedStartDateTime).toFormat('MMM dd, yyyy - HH:mm:ss')}`} - {`${DateTime.fromMillis(brushedEndDateTime).toFormat('MMM dd, yyyy - HH:mm:ss')}`}
-                                </Typography>
-                            </Grid>
-                            <ParentSize>
-                                {({width: visWidth, height: visHeight}) => (
-                                    <EventTimeline width={visWidth} height={visHeight} />
-                                )}
-                            </ParentSize>           
+                            {
+                                dataBuckets.length > 0 && (
+                                    <React.Fragment>
+                                        <Grid item xs={12}>
+                                            <Typography style={{fontSize: '0.8rem'}}>
+                                                Current selection: {`${DateTime.fromMillis(brushedStartDateTime).toFormat('MMM dd, yyyy - HH:mm:ss')}`} - {`${DateTime.fromMillis(brushedEndDateTime).toFormat('MMM dd, yyyy - HH:mm:ss')}`}
+                                            </Typography>
+                                        </Grid>
+                                        <ParentSize>
+                                            {({width: visWidth, height: visHeight}) => (
+                                                <EventTimeline width={visWidth} height={visHeight} />
+                                            )}
+                                        </ParentSize> 
+                                    </React.Fragment>
+                                )
+                            }         
                         </Paper>   
                     </Grid>       
                     <Grid item xs={9}>
+                        
                         <Paper className={classes.rowGraph}>
-                            <NetworkChartV3 />
+                        {
+                            dataBuckets.length > 0 && (
+                                <NetworkChartV3 />
+                            )
+                        }
+                        {
+                            dataBuckets.length === 0 && (
+                                <React.Fragment>
+                                    <Typography variant="h6" display="block" gutterBottom style={{marginLeft: '10px'}}>
+                                        Please select a time window on the left panel to analyse respective data.
+                                    </Typography> 
+                                </React.Fragment>     
+                            )
+                        }
                         </Paper>
                     </Grid>
 
