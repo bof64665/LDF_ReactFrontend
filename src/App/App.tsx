@@ -94,18 +94,8 @@ function App() {
                                         </ParentSize> 
                                     </React.Fragment>
                                 )
-                            }         
-                        </Paper>   
-                    </Grid>       
-                    <Grid item xs={9}>
-                        
-                        <Paper className={classes.rowGraph}>
-                        {
-                            dataBuckets.length > 0 && (
-                                <NetworkChartV3 />
-                            )
-                        }
-                        {
+                            }  
+                            {
                             dataBuckets.length === 0 && (
                                 <React.Fragment>
                                     <Typography variant="h6" display="block" gutterBottom style={{marginLeft: '10px'}}>
@@ -113,7 +103,13 @@ function App() {
                                     </Typography> 
                                 </React.Fragment>     
                             )
-                        }
+                        }       
+                        </Paper>   
+                    </Grid>       
+                    <Grid item xs={9}>
+                        
+                        <Paper className={classes.rowGraph}>
+                            <NetworkChartV3 />
                         </Paper>
                     </Grid>
 

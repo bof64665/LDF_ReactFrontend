@@ -212,7 +212,8 @@ const NetworkChartV3: React.FunctionComponent = () => {
 
     useEffect(() => {
         if (graph.current){
-            graph.current.on('tap', 'edge', (e: AbstractEventObject) => {        
+            graph.current.on('tap', 'edge', (e: AbstractEventObject) => {  
+                if(e.target.data().__typename === 'PortLink') return;
                 if (e.target.hasClass("selected") && e.target.data().id === focusedElement.id) {
                     graph.current.elements().toggleClass('selected unselected', false);
                     dispatch(resetFocusedElement());
