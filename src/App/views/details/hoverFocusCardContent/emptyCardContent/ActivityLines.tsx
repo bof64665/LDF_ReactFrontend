@@ -128,7 +128,7 @@ export default withTooltip<props, FileStats>(({
         return (
             <div>
                 {
-                     dataBuckets.length > 0 &&  (
+                     dataBuckets.length > 0 && maxData > 0 &&  (
                         <svg width={width} height={height} ref={svgRef}>
                             <Group left={margin.left} top={margin.top}>
                                 <GridRows scale={yScale} width={xMax} height={yMax} stroke="#e0e0e0" strokeDasharray="6 3" numTicks={5} />
@@ -189,7 +189,7 @@ export default withTooltip<props, FileStats>(({
                      )
                 }
                 {
-                     dataBuckets.length === 0 &&  (
+                     (dataBuckets.length === 0 || maxData === 0) &&  (
                         <Typography variant="caption" display="block" gutterBottom>
                             No system activity within the selected analysis window.
                         </Typography>

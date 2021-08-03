@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { createStyles, makeStyles, Theme } from '@material-ui/core/styles';
 import Card from '@material-ui/core/Card';
 import CardHeader from '@material-ui/core/CardHeader';
@@ -35,30 +35,31 @@ const DetailsOnDemand = () => {
     
     return (
         <Card className={classes.card}>
-            <CardHeader 
-                title={
-                    <Typography style={{fontWeight: 550, fontSize: '1.2rem'}}>
-                        {element === -1 ? 'Details' : element.id}
-                    </Typography>                  
-                }
-                subheader={
-                    <Typography variant='overline'>
-                        {element === -1 ? 'Select a node or link for details' : element.__typename}
-                    </Typography>
-                }
-                action={
-                    element !==-1 && (
-                        <IconButton 
-                            onClick={() => dispatch(resetFocusedElement())} 
-                            style={{marginTop: '0.7vh'}}
-                            aria-label="close"
-                        >
-                            <CloseRounded />
-                        </IconButton>
-                    )
-                  }
-            />
-            <Divider />
+            {
+                element !== -1 && (
+                    <React.Fragment>
+                        <CardHeader 
+                            title={
+                                <Typography variant='h6'>
+                                    {element.__typename.includes('Link') ? element.__typename.slice(0, element.__typename.indexOf('Link')) : element.__typename}
+                                </Typography>                  
+                            }
+                            action={
+                                element !==-1 && (
+                                    <IconButton 
+                                        onClick={() => dispatch(resetFocusedElement())} 
+                                        style={{marginTop: '0.7vh'}}
+                                        aria-label="close"
+                                    >
+                                        <CloseRounded />
+                                    </IconButton>
+                                )
+                            }
+                        />
+                        <Divider />
+                    </React.Fragment>
+                )
+            }
             {
                 element === -1 && (
                     <EmptyCardContent />

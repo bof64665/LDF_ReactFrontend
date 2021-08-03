@@ -10,19 +10,19 @@ const EmptyCardContent = () => {
     return (
         <CardContent>
             <Grid container spacing={1}>
-                <Grid item xs={12} style={{height: '20vh'}}>
+                <Grid item xs={12} style={{height: '22vh'}}>
                     <Typography variant="overline">System Activity</Typography>
                     <ParentSize>
                         {({width, height}) => <ActivityLines width={width} height={height}/>}
                     </ParentSize>
                 </Grid>
-                <Grid item xs={12} style={{height: '20vh'}}>
+                <Grid item xs={12} style={{height: '22vh'}}>
                     <Typography variant="overline">Network Activity</Typography>
                     <ParentSize>
                         {({width, height}) => <EndpointScatter width={width} height={height}/>}
                     </ParentSize>
                 </Grid>
-                <Grid item xs={12} style={{height: '20vh'}}>
+                <Grid item xs={12} style={{height: '22vh'}}>
                     <Typography variant="overline">File Versions</Typography>
                     <ParentSize>
                         {({width, height}) => <FileScatter width={width} height={height}/>}

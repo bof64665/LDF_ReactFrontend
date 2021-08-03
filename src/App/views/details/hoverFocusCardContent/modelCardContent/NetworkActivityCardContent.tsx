@@ -77,7 +77,7 @@ const NetworkActivityCardContent = ({data}: {data: any}) => {
         <React.Fragment>
             <List>
                 <HoverFocusCardListItem primary={`${data.source}`} secondary='Source port'><Dns /></HoverFocusCardListItem>
-                <HoverFocusCardListItem primary={`${data.overallLinkBytes} (${(data.byteProportion * 100).toPrecision(4)}% of all file versions)`} secondary='Bytes flowing over this link'><DeviceHub /></HoverFocusCardListItem>
+                <HoverFocusCardListItem primary={`${data.overallLinkBytes} (${(data.byteProportion * 100).toPrecision(4)}% of all network activities)`} secondary='Bytes flowing over this link'><DeviceHub /></HoverFocusCardListItem>
                 <HoverFocusCardListItem primary={`${data.target}`} secondary='Target port'><ScatterPlot /></HoverFocusCardListItem>
                 <ListItem button onClick={handleClickOpen}> 
                         <ListItemText disableTypography primary={
