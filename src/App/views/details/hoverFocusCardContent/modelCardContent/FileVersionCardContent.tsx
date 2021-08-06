@@ -88,7 +88,7 @@ const FileVersionCardContent = ({data}: {data: any}) => {
         <React.Fragment>
             <List>
                 <HoverFocusCardListItem primary={source.name} secondary='Editing process'><Category /></HoverFocusCardListItem>
-                <HoverFocusCardListItem primary={`${data.overallLinkBytes} (${(data.byteProportion * 100).toPrecision(4)}% of all file versions)`} secondary='Bytes flowing over this link'><DeviceHub /></HoverFocusCardListItem>
+                <HoverFocusCardListItem primary={`${data.overallLinkBytes} (${(data.byteProportion * 100).toPrecision(4)}% of all changed bytes)`} secondary='Changed bytes'><DeviceHub /></HoverFocusCardListItem>
                 <HoverFocusCardListItem primary={`${data.target}`} secondary='Edited file'><AccountTree /></HoverFocusCardListItem>
                 <ListItem button onClick={handleClickOpen}> 
                     <ListItemText disableTypography primary={

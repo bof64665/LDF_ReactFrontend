@@ -201,10 +201,10 @@ export default withTooltip<props, FileStats>(({
                         <TooltipWithBounds top={tooltipTop} left={tooltipLeft}>
                             <div>
                                 <div style={{color: colorScale('file')}}>
-                                    <small><strong>{tooltipData.file}</strong> file versions</small>
+                                    <small><strong>{tooltipData.file}</strong> file {tooltipData.file === 1 ? 'version' : 'versions'}</small>
                                 </div>
                                 <div style={{color: colorScale('network')}}>
-                                    <small><strong>{tooltipData.network}</strong> network activities</small>
+                                    <small><strong>{tooltipData.network}</strong> network {tooltipData.network === 1 ? 'activity' : 'activities'}</small>
                                 </div>
                                 
                             </div>
